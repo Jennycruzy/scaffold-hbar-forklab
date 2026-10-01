@@ -43,15 +43,39 @@ node .yarn/releases/yarn-3.2.3.cjs next:dev
 
 ```mermaid
 flowchart LR
-    T[Forge tests] --> F[Forklab.setUp]
-    F --> HTS[0x167 ForklabHts]
-    F --> HSS[0x16b ForklabHss]
-    HTS --> M[Mirror Node]
-    T --> R[Hashio JSON-RPC fork]
-    R --> HTS
-    R --> HSS
-    HSS --> C[Scheduled target contract]
+    TEST["Forge test"]
+    RPC["Hashio JSON-RPC"]
+    MIRROR["Hedera Mirror Node"]
+
+    subgraph LOCAL["Local Foundry EVM"]
+        SETUP["Forklab.setUp()"]
+        FORK["Pinned Hedera fork state"]
+        APP["Contract under test"]
+        HTS["0x167 ForklabHts"]
+        HSS["0x16b ForklabHss"]
+        SAUCER["Real SaucerSwap contracts"]
+        SUPRA["Real Supra oracle"]
+    end
+
+    TEST --> SETUP
+    TEST --> APP
+    SETUP -->|"installs"| HTS
+    SETUP -->|"installs"| HSS
+    RPC -->|"bytecode and storage"| FORK
+    FORK --> SAUCER
+    FORK --> SUPRA
+    APP -->|"HTS calls"| HTS
+    HTS -->|"timestamped reads through FFI"| MIRROR
+    APP -->|"create schedule"| HSS
+    HSS -->|"execute as payer"| APP
+    APP -->|"swap"| SAUCER
+    APP -->|"price read"| SUPRA
 ```
+
+Hashio supplies the pinned EVM state and deployed contract code. HTS calls are
+handled by Forklab at `0x167`, with timestamped token and account data read from
+the Mirror Node. Schedule calls are handled locally at `0x16b`, where Forklab
+executes due calls with the recorded payer, value, gas limit, and ordering.
 
 ## Environment variables
 
