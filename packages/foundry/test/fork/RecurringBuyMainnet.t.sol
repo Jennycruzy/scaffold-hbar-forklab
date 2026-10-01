@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import { Test } from "forge-std/Test.sol";
+import { ISupraSValueFeed } from "../../contracts/ISupraSValueFeed.sol";
+import { Forklab } from "../../contracts/forklab/Forklab.sol";
+import { IERC20RecurringBuy, ISaucerSwapRouterRecurringBuy, RecurringBuy } from "../../contracts/RecurringBuy.sol";
+
+/// @notice Real mainnet-fork proofs for Supra-backed recurring SaucerSwap buys.
+contract RecurringBuyMainnetTest is Test {
+    uint256 private constant TINYBARS_PER_HBAR = 100_000_000;
+    uint256 private constant HBAR_USD_PAIR_INDEX = 432;
+
+    address private constant SUPRA = 0xD02cc7a670047b6b012556A88e275c685d25e0c9;
+    address private constant ROUTER = 0x00000000000000000000000000000000002E7A5D;
+    address private constant WHBAR = 0x0000000000000000000000000000000000163B5a;
+    address private constant USDC = 0x000000000000000000000000000000000006f89a;
+    address private constant OWNER = 0xC376f5159300C1b16d2d711cc43AFCaF7433B0EE;
+
+    ISaucerSwapRouterRecurringBuy private constant ROUTER_CONTRACT = ISaucerSwapRouterRecurringBuy(ROUTER);
+    ISupraSValueFeed private constant SUPRA_CONTRACT = ISupraSValueFeed(SUPRA);
+
+    function setUp() public {
+        if (block.chainid != 295) vm.skip(true, "requires the pinned Hedera mainnet fork");
+        Forklab.setUp();
+        address[] memory tokens = new address[](2);
+        tokens[0] = USDC;
+        tokens[1] = WHBAR;
+        Forklab.useTokens(tokens);
+    }
+
+    /// @notice Confirms the real HBAR/USD observation is live at the pinned block.
+    function test_supraHbarUsdFeedIsLiveAtPinnedBlock() external view {
+        ISupraSValueFeed.PriceFeed memory observation = SUPRA_CONTRACT.getSvalue(HBAR_USD_PAIR_INDEX);
+        uint256 publishTime = observation.time / 1_000;
+        assertEq(observation.decimals, 18);
+        assertGt(observation.price, 0);
+        assertLe(publishTime, block.timestamp);
+        assertLe(block.timestamp - publishTime, 3_600);
+    }
+
+    /// @notice Executes three real scheduled purchases and confirms owner proceeds.
+    function test_threeScheduledBuysUseRealSupraAndSaucerSwap() external {
+        RecurringBuy vault = _newVault(60, 500, 7_200);
+        vm.deal(address(vault), 10 * TINYBARS_PER_HBAR);
+        vm.prank(OWNER);
+        (, address firstSchedule) = vault.start();
+
+        uint256 firstBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertEq(Forklab.warp(60), 1);
+        assertTrue(Forklab.schedule(firstSchedule).success);
+        uint256 secondBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertGt(secondBalance, firstBalance);
+
+        address secondSchedule = vault.nextSchedule();
+        assertEq(Forklab.warp(60), 1);
+        assertTrue(Forklab.schedule(secondSchedule).success);
+        uint256 thirdBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertGt(thirdBalance, secondBalance);
+
+        address thirdSchedule = vault.nextSchedule();
+        assertEq(Forklab.warp(60), 1);
+        assertTrue(Forklab.schedule(thirdSchedule).success);
+        uint256 fourthBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertGt(fourthBalance, thirdBalance);
+        assertTrue(vault.running());
+        assertNotEq(vault.nextSchedule(), address(0));
+    }
+
+    /// @notice A real large swap moves the pool quote outside the Supra tolerance.
+    function test_largeRealSwapCausesDeviationSkip() external {
+        RecurringBuy vault = _newVault(60, 500, 3_600);
+        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.prank(OWNER);
+        vault.start();
+
+        address trader = makeAddr("price-moving-trader");
+        uint256 input = 100_000 * TINYBARS_PER_HBAR;
+        vm.deal(trader, input);
+        address[] memory path = new address[](2);
+        path[0] = WHBAR;
+        path[1] = USDC;
+        uint256[] memory quote = ROUTER_CONTRACT.getAmountsOut(input, path);
+        vm.prank(trader);
+        ROUTER_CONTRACT.swapExactETHForTokens{ value: input }(quote[1], path, trader, block.timestamp + 600);
+
+        uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertEq(Forklab.warp(60), 1);
+        assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerBefore);
+        assertTrue(vault.running());
+    }
+
+    /// @notice A Supra price older than the configured bound skips without swapping.
+    function test_staleSupraPriceSkips() external {
+        RecurringBuy vault = _newVault(2, 500, 1);
+        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.prank(OWNER);
+        vault.start();
+        uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+
+        assertEq(Forklab.warp(2), 1);
+        assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerBefore);
+        assertTrue(vault.running());
+    }
+
+    /// @notice A vault without HBAR records the real emulator payer-balance failure.
+    function test_outOfHbarRecordsPayerFailure() external {
+        RecurringBuy vault = _newVault(60, 500, 3_600);
+        Forklab.setScheduleFeeTinybars(1);
+        vm.prank(OWNER);
+        (, address scheduleAddress) = vault.start();
+        assertEq(Forklab.warp(60), 1);
+        assertEq(Forklab.schedule(scheduleAddress).status, int64(10));
+        assertFalse(Forklab.schedule(scheduleAddress).success);
+    }
+
+    /// @notice Stopping a vault deletes its pending schedule.
+    function test_stopDeletesPendingSchedule() external {
+        RecurringBuy vault = _newVault(60, 500, 3_600);
+        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.prank(OWNER);
+        (, address scheduleAddress) = vault.start();
+        vm.prank(OWNER);
+        assertEq(vault.stop(), int64(22));
+        assertEq(Forklab.schedule(scheduleAddress).status, int64(22));
+        assertEq(vault.nextSchedule(), address(0));
+        assertFalse(vault.running());
+    }
+
+    /// @notice Direct execution by a test caller is rejected; the HSS payer frame is required.
+    function test_executeRequiresVaultCaller() external {
+        RecurringBuy vault = _newVault(60, 500, 3_600);
+        vm.expectRevert(RecurringBuy.OnlyVault.selector);
+        vault.execute();
+    }
+
+    function _newVault(uint256 intervalSeconds, uint256 deviationBps, uint256 priceAgeSeconds)
+        private
+        returns (RecurringBuy vault)
+    {
+        vm.prank(OWNER);
+        vault = new RecurringBuy(SUPRA, ROUTER);
+        vm.prank(OWNER);
+        vault.configure(USDC, TINYBARS_PER_HBAR, intervalSeconds, deviationBps, priceAgeSeconds);
+    }
+}

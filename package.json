@@ -1,0 +1,53 @@
+{
+  "name": "forklab",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "packages/nextjs",
+      "packages/foundry"
+    ]
+  },
+  "scripts": {
+    "foundry:account": "yarn workspace @forklab/foundry account",
+    "foundry:account:generate": "yarn workspace @forklab/foundry account:generate",
+    "foundry:account:import": "yarn workspace @forklab/foundry account:import",
+    "foundry:account:reveal-pk": "yarn workspace @forklab/foundry account:reveal-pk",
+    "foundry:chain": "yarn workspace @forklab/foundry chain",
+    "foundry:clean": "yarn workspace @forklab/foundry clean",
+    "foundry:compile": "yarn workspace @forklab/foundry compile",
+    "foundry:test": "yarn workspace @forklab/foundry test",
+    "foundry:doctor": "yarn workspace @forklab/foundry doctor",
+    "foundry:test:fork": "yarn workspace @forklab/foundry test:fork",
+    "foundry:test:testnet-fork": "yarn workspace @forklab/foundry test:testnet-fork",
+    "foundry:fork:pin": "yarn workspace @forklab/foundry fork:pin",
+    "foundry:deploy": "yarn workspace @forklab/foundry deploy",
+    "foundry:flatten": "yarn workspace @forklab/foundry flatten",
+    "foundry:fork": "yarn workspace @forklab/foundry fork",
+    "foundry:format": "yarn workspace @forklab/foundry format",
+    "foundry:lint": "yarn workspace @forklab/foundry lint",
+    "foundry:lint-staged": "yarn workspace @forklab/foundry lint-staged",
+    "foundry:verify:testnet": "yarn workspace @forklab/foundry verify:testnet",
+    "foundry:verify:mainnet": "yarn workspace @forklab/foundry verify:mainnet",
+    "format": "yarn next:format && yarn foundry:format",
+    "lint": "yarn next:lint && yarn foundry:lint",
+    "next:build": "yarn workspace @forklab/nextjs build",
+    "next:check-types": "yarn workspace @forklab/nextjs check-types",
+    "next:dev": "yarn workspace @forklab/nextjs dev",
+    "next:format": "yarn workspace @forklab/nextjs format",
+    "next:lint": "yarn workspace @forklab/nextjs lint",
+    "next:serve": "yarn workspace @forklab/nextjs serve",
+    "next:start": "yarn workspace @forklab/nextjs start",
+    "postinstall": "husky",
+    "precommit": "lint-staged",
+    "lint-staged": "lint-staged"
+  },
+  "packageManager": "yarn@3.2.3",
+  "devDependencies": {
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10"
+  },
+  "engines": {
+    "node": ">=20.18.3"
+  }
+}

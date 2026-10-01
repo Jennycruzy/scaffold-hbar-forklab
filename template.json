@@ -1,0 +1,45 @@
+{
+  "name": "forklab",
+  "description": "Test against real Hedera locally with Foundry, HTS, and the Hedera Schedule Service emulator.",
+  "create-scaffold-hbar": {
+    "capabilities": {
+      "frontend": ["nextjs-app"],
+      "solidityFramework": ["foundry"],
+      "packageManager": ["yarn", "npm"]
+    },
+    "defaults": {
+      "frontend": "nextjs-app",
+      "solidityFramework": "foundry",
+      "packageManager": "yarn"
+    },
+    "outro": {
+      "sections": [
+        {
+          "title": "Next steps",
+          "steps": [
+            {
+              "label": "Run the Foundry environment check",
+              "command": "{run:foundry:doctor}"
+            },
+            {
+              "label": "Run offline emulator tests",
+              "command": "{run:foundry:test}"
+            },
+            {
+              "label": "Run the mainnet fork tests",
+              "command": "{run:foundry:test:fork}"
+            },
+            {
+              "label": "Deploy and run the testnet example",
+              "command": "{run:foundry:deploy}"
+            },
+            {
+              "label": "Start the frontend",
+              "command": "{run:next:dev}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

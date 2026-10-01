@@ -1,0 +1,107 @@
+version: 2.1
+
+parameters:
+  run_mainnet_fork:
+    type: boolean
+    default: false
+  run_testnet_fork:
+    type: boolean
+    default: false
+
+commands:
+  install_toolchain:
+    description: Install the pinned Node, Yarn, and Foundry toolchain.
+    steps:
+      - checkout
+      - run:
+          name: Initialize pinned git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: Enable Yarn 3.2.3
+          command: |
+            corepack enable
+            corepack prepare yarn@3.2.3 --activate
+            test "$(yarn --version)" = "3.2.3"
+      - restore_cache:
+          keys:
+            - v1-yarn-{{ checksum "yarn.lock" }}
+            - v1-yarn-
+      - run:
+          name: Install Foundry 1.5.0
+          command: |
+            curl --fail --silent --show-error --location https://foundry.paradigm.xyz | bash
+            printf '%s\n' 'export PATH="$HOME/.foundry/bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
+            foundryup --install v1.5.0
+            forge --version | grep -F 'forge Version: 1.5.0-v1.5.0'
+      - run:
+          name: Install workspace dependencies
+          command: yarn install --immutable
+      - save_cache:
+          key: v1-yarn-{{ checksum "yarn.lock" }}
+          paths:
+            - .yarn/cache
+
+jobs:
+  quality:
+    docker:
+      - image: cimg/node:20.18.3
+    resource_class: medium+
+    steps:
+      - install_toolchain
+      - run:
+          name: Lint JavaScript, TypeScript, and Solidity
+          command: yarn lint
+      - run:
+          name: Check frontend types
+          command: yarn next:check-types
+      - run:
+          name: Build frontend
+          command: yarn next:build
+      - run:
+          name: Compile Foundry contracts
+          command: yarn foundry:compile
+      - run:
+          name: Run offline Foundry tests
+          command: yarn foundry:test
+
+  mainnet_fork:
+    docker:
+      - image: cimg/node:20.18.3
+    resource_class: medium+
+    steps:
+      - install_toolchain
+      - run:
+          name: Run mainnet preflight
+          command: yarn workspace @forklab/foundry doctor --network mainnet
+      - run:
+          name: Run pinned mainnet fork tests
+          command: yarn foundry:test:fork
+
+  testnet_fork:
+    docker:
+      - image: cimg/node:20.18.3
+    resource_class: medium+
+    steps:
+      - install_toolchain
+      - run:
+          name: Run testnet preflight
+          command: yarn workspace @forklab/foundry doctor --network testnet
+      - run:
+          name: Run pinned testnet fork tests
+          command: yarn foundry:test:testnet-fork
+
+workflows:
+  quality:
+    jobs:
+      - quality
+
+  mainnet_fork:
+    when: << pipeline.parameters.run_mainnet_fork >>
+    jobs:
+      - mainnet_fork
+
+  testnet_fork:
+    when: << pipeline.parameters.run_testnet_fork >>
+    jobs:
+      - testnet_fork
