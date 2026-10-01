@@ -42,7 +42,8 @@ node .yarn/releases/yarn-3.2.3.cjs next:dev
 ## Architecture
 
 ```mermaid
-flowchart LR
+%%{init: {"flowchart": {"nodeSpacing": 55, "rankSpacing": 70}, "themeVariables": {"fontSize": "20px"}}}%%
+flowchart TB
     TEST["Forge test"]
     RPC["Hashio JSON-RPC"]
     MIRROR["Hedera Mirror Node"]
@@ -72,14 +73,14 @@ flowchart LR
     APP -->|"swap"| SAUCER
     APP -->|"price read"| SUPRA
 
-    classDef test fill:#6D28D9,stroke:#3B0764,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef control fill:#0369A1,stroke:#082F49,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef state fill:#1D4ED8,stroke:#172554,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef app fill:#0F766E,stroke:#042F2E,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef hts fill:#C2410C,stroke:#431407,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef hss fill:#BE123C,stroke:#4C0519,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef integration fill:#047857,stroke:#022C22,stroke-width:4px,color:#FFFFFF,font-weight:bold
-    classDef network fill:#334155,stroke:#0F172A,stroke-width:4px,color:#FFFFFF,font-weight:bold
+    classDef test fill:#6D28D9,stroke:#3B0764,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef control fill:#0369A1,stroke:#082F49,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef state fill:#1D4ED8,stroke:#172554,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef app fill:#0F766E,stroke:#042F2E,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef hts fill:#C2410C,stroke:#431407,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef hss fill:#BE123C,stroke:#4C0519,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef integration fill:#047857,stroke:#022C22,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
+    classDef network fill:#334155,stroke:#0F172A,stroke-width:5px,color:#FFFFFF,font-size:20px,font-weight:bold
 
     class TEST test
     class SETUP control
@@ -90,8 +91,8 @@ flowchart LR
     class SAUCER,SUPRA integration
     class RPC,MIRROR network
 
-    style LOCAL fill:#E2E8F0,stroke:#0F172A,stroke-width:4px,color:#0F172A
-    linkStyle default stroke:#475569,stroke-width:3px
+    style LOCAL fill:#E2E8F0,stroke:#0F172A,stroke-width:5px,color:#0F172A,font-size:22px,font-weight:bold
+    linkStyle default stroke:#475569,stroke-width:4px
 ```
 
 Hashio supplies the pinned EVM state and deployed contract code. HTS calls are
