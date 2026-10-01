@@ -17,10 +17,12 @@ commands:
           name: Initialize pinned git submodules
           command: git submodule update --init --recursive
       - run:
-          name: Enable Yarn 3.2.3
+          name: Enable checked-in Yarn 3.2.3
           command: |
-            corepack enable
-            corepack prepare yarn@3.2.3 --activate
+            mkdir -p /tmp/forklab-bin
+            ln -sf "$PWD/.yarn/releases/yarn-3.2.3.cjs" /tmp/forklab-bin/yarn
+            printf '%s\n' 'export PATH="/tmp/forklab-bin:$PATH"' >> "$BASH_ENV"
+            source "$BASH_ENV"
             test "$(yarn --version)" = "3.2.3"
       - restore_cache:
           keys:
