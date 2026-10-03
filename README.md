@@ -203,6 +203,10 @@ contract ScheduledCallTest is Test {
 
 The implemented fork examples are SaucerSwap V1 swaps, Supra HBAR/USD push-feed reads, HTS token reads, and the Hedera Schedule Service emulator. Their fork tests read real network state. The required Bonzo Lend integration has not yet been built or tested.
 
+## Payments-scheduler compatibility
+
+The upstream `templates/payments-scheduler` test etches a `MockHederaScheduleService` that records the requested target, gas, and calldata. Forklab's attributed port in `test/compat/PaymentsSchedulerCompat.t.sol` sends the same recurring-vault pattern through the emulator: `Forklab.warp` executes the target action, checks its real state change and payer sender, and then executes the schedule created by the first run.
+
 ## Evidence and credits
 
 - Verified commands and network values: [`docs/VERIFIED.md`](docs/VERIFIED.md)
