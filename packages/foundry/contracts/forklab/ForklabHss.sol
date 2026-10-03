@@ -185,6 +185,40 @@ contract ForklabHss is IHederaScheduleService {
         return executed;
     }
 
+    /// @notice Records an execution sent directly by an external Anvil runner.
+    /// @dev Foundry cheatcodes are unavailable to bytecode installed with
+    ///      `anvil_setCode`, so the local runner impersonates the recorded payer,
+    ///      calls the target, then settles the observed receipt here as that payer.
+    function recordExternalExecution(address scheduleAddress, bool success, bytes calldata returnData)
+        external
+        returns (int64 responseCode)
+    {
+        ScheduleState storage state = _schedules[scheduleAddress];
+        bytes memory observedReturnData = returnData;
+        if (!state.exists) return INVALID_SCHEDULE_ID;
+        if (state.deleted) return SCHEDULE_ALREADY_DELETED;
+        if (state.terminal) return SCHEDULE_ALREADY_EXECUTED;
+        if (msg.sender != state.info.payer) return UNAUTHORIZED;
+        if (block.timestamp < state.info.expiry) return EXPIRY_NOT_IN_FUTURE;
+        if (state.requiresSignature && !state.signed) {
+            _expire(scheduleAddress);
+            return INVALID_SIGNATURE;
+        }
+        if (state.rejectPayerAtExecution) {
+            state.info.status = INVALID_SIGNATURE;
+            success = false;
+            observedReturnData = bytes("");
+        } else {
+            state.info.status = SUCCESS;
+        }
+        state.info.success = success;
+        state.info.returnData = observedReturnData;
+        state.info.executedAt = block.timestamp;
+        state.terminal = true;
+        emit ScheduleExecuted(scheduleAddress, success, observedReturnData);
+        return state.info.status;
+    }
+
     /// @notice Sets the per-second schedule count limit used by this emulator.
     /// @param value The maximum number of schedules for one second.
     function setMaxSchedulesPerSecond(uint256 value) external {

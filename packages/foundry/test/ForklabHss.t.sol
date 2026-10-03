@@ -10,6 +10,7 @@ import {
     ForklabRecursiveScheduler
 } from "../contracts/forklab/ForklabFixtures.sol";
 import { IHederaScheduleService } from "../contracts/forklab/IHederaScheduleService.sol";
+import { ForklabHss } from "../contracts/forklab/ForklabHss.sol";
 
 /// @notice Offline behavioural tests for the local schedule emulator.
 contract ForklabHssTest is Test {
@@ -207,6 +208,38 @@ contract ForklabHssTest is Test {
         uint256 lateTimestamp = block.timestamp + 100;
         assertEq(Forklab.warpTo(lateTimestamp), 1);
         assertEq(Forklab.schedule(scheduleAddress).executedAt, lateTimestamp);
+    }
+
+    function test_externalRunnerRecordsObservedPayerExecution() public {
+        uint256 expiry = block.timestamp + 10;
+        (, address scheduleAddress) =
+            HSS.scheduleCall(address(target), expiry, 100_000, 0, abi.encodeCall(ForklabScheduleTarget.record, (77)));
+
+        vm.warp(expiry);
+        target.record(77);
+        vm.expectEmit(true, false, false, true, address(0x16b));
+        emit ScheduleExecuted(scheduleAddress, true, bytes(""));
+        assertEq(ForklabHss(address(0x16b)).recordExternalExecution(scheduleAddress, true, bytes("")), SUCCESS);
+
+        Forklab.ScheduleInfo memory info = Forklab.schedule(scheduleAddress);
+        assertTrue(info.success);
+        assertEq(info.executedAt, expiry);
+        assertEq(target.markerAt(0), 77);
+        assertEq(Forklab.pending().length, 0);
+    }
+
+    function test_externalRunnerRejectsStrangerAndEarlySettlement() public {
+        uint256 expiry = block.timestamp + 10;
+        (, address scheduleAddress) =
+            HSS.scheduleCall(address(target), expiry, 100_000, 0, abi.encodeCall(ForklabScheduleTarget.record, (78)));
+
+        assertEq(
+            ForklabHss(address(0x16b)).recordExternalExecution(scheduleAddress, true, bytes("")), EXPIRY_NOT_IN_FUTURE
+        );
+        vm.warp(expiry);
+        vm.prank(makeAddr("stranger"));
+        assertEq(ForklabHss(address(0x16b)).recordExternalExecution(scheduleAddress, true, bytes("")), UNAUTHORIZED);
+        assertEq(Forklab.pending().length, 1);
     }
 
     function test_contractReschedulesItselfFiveTimesThenStops() public {
