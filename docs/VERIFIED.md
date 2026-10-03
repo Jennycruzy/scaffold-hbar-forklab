@@ -239,6 +239,27 @@ Output:
 
 The pinned price is `$0.104597` per HBAR. Reading the push feed is an on-chain view call and requires no oracle API credential.
 
+## RecurringBuy deployment defaults
+
+`Deploy.s.sol` and `DeployRecurringBuy.s.sol` use the verified network constants below, while allowing explicit `RECURRING_BUY_SUPRA` and `RECURRING_BUY_ROUTER` overrides:
+
+```text
+Hedera mainnet Supra:      0xD02cc7a670047b6b012556A88e275c685d25e0c9
+Hedera mainnet router:     0x00000000000000000000000000000000002E7A5D
+Hedera testnet Supra:      0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917
+Hedera testnet router:     0x0000000000000000000000000000000000004b40
+```
+
+The Supra code/read evidence is in the preceding section. The SaucerSwap router and WHBAR helper calls were verified with:
+
+```text
+cast code --rpc-url https://testnet.hashio.io/api 0x0000000000000000000000000000000000004b40
+cast call --rpc-url https://testnet.hashio.io/api 0x0000000000000000000000000000000000004b40 'WHBAR()(address)'
+cast call --rpc-url https://testnet.hashio.io/api 0x0000000000000000000000000000000000003aD1 'token()(address)'
+```
+
+The earlier verified outputs are non-empty router bytecode, WHBAR helper `0x0000000000000000000000000000000000003aD1`, and WHBAR token `0x0000000000000000000000000000000000003aD2`. A token pair with current testnet liquidity still has to be selected during the live proof.
+
 ## Owner account used by the fork proof
 
 The fork proof uses Hedera account `0.0.10898016`, whose EVM address was verified at the pinned timestamp:

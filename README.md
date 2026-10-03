@@ -121,6 +121,27 @@ executes due calls with the recorded payer, value, gas limit, and ordering.
 
 Do not commit `.env` files, private keys, or keystores.
 
+## Deploy and start a testnet vault
+
+The default deploy script now deploys `RecurringBuy` with the verified Hedera testnet Supra and SaucerSwap addresses. Use a funded ECDSA keystore that you control:
+
+```bash
+node .yarn/releases/yarn-3.2.3.cjs foundry:deploy --network hedera_testnet --keystore "$KEYSTORE_NAME"
+```
+
+The deployment command updates `packages/nextjs/contracts/deployedContracts.ts`. Set `VAULT` to the emitted address and `TOKEN_OUT` to the selected, verified testnet-pair token. The example buys 1 HBAR every 60 seconds, allows 5% deviation/slippage, accepts the documented two-hour Supra age, funds ten runs, and starts scheduling:
+
+```bash
+cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
+  "$VAULT" 'configure(address,uint256,uint256,uint256,uint256)' "$TOKEN_OUT" 100000000 60 500 7200
+cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
+  --value 10000000000000000000 "$VAULT" 'deposit()'
+cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
+  "$VAULT" 'start()'
+```
+
+The payable JSON-RPC value is in weibars (`1 tinybar = 10^10 weibars`), while `configure` takes tinybars. The live proof must select `TOKEN_OUT` from a pool with measured testnet liquidity before running these commands.
+
 ## Write your first scheduled-call test
 
 ```solidity
