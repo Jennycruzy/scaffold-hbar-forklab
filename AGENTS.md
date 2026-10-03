@@ -24,7 +24,7 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 - `packages/foundry/contracts/forklab/IHederaScheduleService.sol`: HIP-1215 ABI.
 - `packages/foundry/contracts/ISupraSValueFeed.sol`: Supra push-oracle read interface.
 - `packages/foundry/test/`: offline emulator and protocol tests.
-- `packages/foundry/test/fork/`: real mainnet fork tests. Testnet fork coverage is required but is not implemented yet.
+- `packages/foundry/test/fork/`: real mainnet and testnet fork tests. The Bonzo test records the pinned reserve blocker described in `docs/VERIFIED.md`.
 - `packages/foundry/scripts-js/`: preflight, block pinning, and live-data helpers.
 - `packages/nextjs/app/`: frontend routes.
 - `docs/`: evidence and user documentation.

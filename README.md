@@ -2,7 +2,7 @@
 
 Test against real Hedera locally, including the Hedera Schedule Service. Forklab is a Scaffold-HBAR template for Foundry tests that keep HTS token state, SaucerSwap, Supra, the Mirror Node, and scheduled contract calls in the same workflow.
 
-The local emulator is a test aid, not a replacement for testnet. Fork tests read real Hedera state at a pinned block. A live testnet deployment and its transaction evidence have not yet been completed.
+The local emulator is a test aid, not a replacement for testnet. Fork tests read real Hedera state at a pinned block. A live `RecurringBuy` deployment is recorded in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md); scheduled execution evidence is still being collected from the configured vault.
 
 ## Prerequisites
 
@@ -223,7 +223,7 @@ The upstream `templates/payments-scheduler` test etches a `MockHederaScheduleSer
 ## Evidence and credits
 
 - Verified commands and network values: [`docs/VERIFIED.md`](docs/VERIFIED.md)
-- Testnet transaction evidence will be linked here after the live deployment and proof run are complete.
+- Testnet deployment and transaction evidence: [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md). The document distinguishes deployment from scheduled-run evidence.
 - Agent extension rules: [`AGENTS.md`](AGENTS.md)
 - Scaffold-HBAR and Hedera tooling: [Scaffold HBAR](https://github.com/hedera-dev/scaffold-hbar)
 - Forking library: [hedera-forking](https://github.com/hashgraph/hedera-forking)

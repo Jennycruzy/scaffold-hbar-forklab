@@ -2,6 +2,34 @@
 
 This file records commands run against the pinned toolchain and live Hedera services. Values below are observations, not placeholders.
 
+## Latest HEAD checks
+
+After the Bonzo sweep change at commit `403c344`, the repository-side checks returned:
+
+```text
+$ node .yarn/releases/yarn-3.2.3.cjs lint
+✔ No ESLint warnings or errors
+All matched files use Prettier code style!
+
+$ node .yarn/releases/yarn-3.2.3.cjs next:check-types
+exit 0
+
+$ node .yarn/releases/yarn-3.2.3.cjs next:build
+✓ Compiled successfully
+✓ Generating static pages (14/14)
+
+$ node .yarn/releases/yarn-3.2.3.cjs foundry:compile
+Compiler run successful!
+
+$ node .yarn/releases/yarn-3.2.3.cjs foundry:test
+17 tests passed, 0 failed, 3 skipped (20 total tests)
+
+$ node scripts/validate-template.mjs
+template.json: valid TemplateManifestSchema
+```
+
+The latest-HEAD fresh-template installer run and latest full network-fork reruns remain separate acceptance work; the earlier fresh-copy results below are retained with their original commit instead of being relabeled.
+
 ## Template manifest
 
 The repository validator mirrors `TemplateManifestSchema` from create-scaffold-hbar `src/types.ts` and parses the checked-in manifest with Zod:
