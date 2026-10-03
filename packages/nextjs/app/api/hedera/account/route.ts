@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const network = (searchParams.get("network") ?? "testnet").toLowerCase();
 
   if (!evm || !EVM_ADDRESS_RE.test(evm)) {
-    return NextResponse.json({ error: "Missing or invalid EVM address" }, { status: 400 });
+    return NextResponse.json({ accountId: null, configured: false, message: "Pass a valid EVM address with ?evm=0x…" });
   }
 
   const base = MIRROR_BASE[network] ?? MIRROR_BASE.testnet;

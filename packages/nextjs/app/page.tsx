@@ -1,162 +1,213 @@
 "use client";
 
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { HederaPortalFaucet } from "@scaffold-hbar-ui/components";
 import type { NextPage } from "next";
-import { useAccount } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { HederaAddress } from "~~/components/scaffold-hbar";
-import { useTargetNetwork } from "~~/hooks/scaffold-hbar";
+import { BeakerIcon, ClockIcon, ExclamationTriangleIcon, WalletIcon } from "@heroicons/react/24/outline";
+
+type Run = {
+  hash: string | null;
+  consensusTimestamp: string | null;
+  result: string | null;
+  hashscan: string | null;
+};
+
+type RecurringBuyStatus = {
+  online?: boolean;
+  configured?: boolean;
+  address?: string;
+  running?: boolean;
+  nextRunAt?: number;
+  lastRunAt?: number;
+  balanceTinybars?: string;
+  lastScheduleStatus?: number;
+  runs?: Run[];
+  message?: string;
+};
+
+function formatTime(timestamp?: number) {
+  if (!timestamp) return "—";
+  return new Date(timestamp * 1_000).toLocaleString();
+}
+
+function shortAddress(address?: string) {
+  return address ? `${address.slice(0, 8)}…${address.slice(-6)}` : "—";
+}
 
 const Home: NextPage = () => {
-  const { address: connectedAddress, status } = useAccount();
-  const { targetNetwork } = useTargetNetwork();
+  const [status, setStatus] = useState<RecurringBuyStatus | null>(null);
 
-  const isReconnecting = status === "reconnecting" || status === "connecting";
-  const isConnected = status === "connected" && connectedAddress;
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/recurring-buy/status", { cache: "no-store" })
+      .then(response => response.json() as Promise<RecurringBuyStatus>)
+      .then(value => {
+        if (!cancelled) setStatus(value);
+      })
+      .catch(() => {
+        if (!cancelled) setStatus({ online: false, message: "The testnet status endpoint is unavailable." });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isOffline = status?.online !== true;
 
   return (
-    <>
-      <div className="flex items-center flex-col grow">
-        <div className="hedera-gradient dark:bg-none dark:bg-hedera-charcoal w-full py-16 px-5">
-          <div className="flex flex-col items-center max-w-2xl mx-auto">
-            <Image
-              src="/Hedera-Icon-White.svg"
-              alt="Hedera icon"
-              width={80}
-              height={80}
-              className="mb-6 hidden dark:block"
-            />
-            <Image src="/Hedera-Icon-Dark.svg" alt="Hedera icon" width={80} height={80} className="mb-6 dark:hidden" />
-            <div className="flex flex-col items-center gap-1 mb-4">
-              <span className="block text-lg font-medium tracking-widest uppercase text-white/80 dark:text-white/60">
-                Built on Hedera
-              </span>
-              <span className="block text-lg font-medium tracking-widest uppercase text-white/80 dark:text-white/60">
-                For
-              </span>
-              <Image
-                src="/Hedera-Wordmark-Lockup-White.svg"
-                alt="Hedera"
-                width={240}
-                height={48}
-                className="mt-1 hidden dark:block"
-              />
-              <Image
-                src="/Hedera-Wordmark-Lockup-Dark.svg"
-                alt="Hedera"
-                width={240}
-                height={48}
-                className="mt-1 dark:hidden"
-              />
-            </div>
+    <div className="flex w-full flex-col items-center">
+      <section className="hedera-gradient w-full px-5 py-20 text-white dark:bg-hedera-charcoal dark:bg-none">
+        <div className="mx-auto max-w-5xl">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.28em] text-white/70">Forklab · Hedera</p>
+          <h1 className="mb-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
+            Real schedule flows, pinned network state, and a vault you can run.
+          </h1>
+          <p className="mb-8 max-w-2xl text-lg text-white/80">
+            Forklab is a testable Hedera environment for recurring HBAR-to-token purchases. It reads real Supra and
+            SaucerSwap state, then makes schedule behavior observable locally and on testnet.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/vault" className="btn btn-neutral gap-2">
+              Build a vault
+            </Link>
+            <Link href="/lab" className="btn btn-ghost border border-white/40 text-white hover:bg-white/10">
+              Run local lab
+            </Link>
           </div>
         </div>
+      </section>
 
-        <div className="w-full max-w-4xl mx-auto px-5 -mt-8">
-          <div className="bg-base-100 rounded-2xl shadow-lg p-8">
-            {isReconnecting ? (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">Connecting…</p>
-                <div className="h-8 w-48 rounded bg-base-200 animate-pulse" aria-hidden />
-              </div>
-            ) : isConnected ? (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">
-                  Connected Address
-                </p>
-                <HederaAddress address={connectedAddress} chain={targetNetwork} />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <p className="font-semibold text-sm text-base-content/60 uppercase tracking-wider m-0">
-                  Connect your wallet to get started
+      <main className="w-full max-w-5xl px-5 py-10">
+        <section className="mb-8 rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
+                Testnet vault
+              </p>
+              <h2 className="m-0 text-2xl font-bold">RecurringBuy live status</h2>
+            </div>
+            <span className={`badge ${isOffline ? "badge-warning" : "badge-success"}`}>
+              {isOffline ? "Offline / not configured" : status?.running ? "Running" : "Connected"}
+            </span>
+          </div>
+
+          {isOffline ? (
+            <div className="flex items-start gap-3 rounded-xl bg-base-200 p-4 text-sm">
+              <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+              <div>
+                <p className="m-0 font-medium">No live vault is configured yet.</p>
+                <p className="m-0 mt-1 text-base-content/65">
+                  {status?.message ?? "Set NEXT_PUBLIC_RECURRING_BUY_ADDRESS after the testnet deployment."}
                 </p>
               </div>
-            )}
-          </div>
-        </div>
-
-        <div className="w-full max-w-4xl mx-auto px-5 mt-8 pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-base-100 rounded-2xl shadow-md p-8 text-center flex flex-col items-center hover:shadow-lg transition-shadow border border-base-300">
-              <div className="w-14 h-14 rounded-full hedera-gradient flex items-center justify-center mb-4">
-                <BugAntIcon className="h-7 w-7 text-white" />
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-xl bg-base-200 p-4">
+                  <p className="m-0 text-xs uppercase tracking-wide text-base-content/55">Vault</p>
+                  <p className="m-0 mt-1 font-mono text-sm">{shortAddress(status?.address)}</p>
+                </div>
+                <div className="rounded-xl bg-base-200 p-4">
+                  <p className="m-0 text-xs uppercase tracking-wide text-base-content/55">Next run</p>
+                  <p className="m-0 mt-1 text-sm">{formatTime(status?.nextRunAt)}</p>
+                </div>
+                <div className="rounded-xl bg-base-200 p-4">
+                  <p className="m-0 text-xs uppercase tracking-wide text-base-content/55">Last run</p>
+                  <p className="m-0 mt-1 text-sm">{formatTime(status?.lastRunAt)}</p>
+                </div>
               </div>
-              <h3 className="font-bold text-lg mb-2">Debug Contracts</h3>
-              <p className="text-base-content/70 text-sm m-0 mb-6">
-                Tinker with your smart contracts and test interactions in real time.
+              <p className="mt-4 text-sm text-base-content/65">
+                Last schedule response: <span className="font-mono">{status?.lastScheduleStatus ?? "—"}</span>. Balance:{" "}
+                {status?.balanceTinybars ?? "—"} tinybars.
               </p>
-              <Link href="/debug" passHref className="btn btn-primary btn-sm">
-                Open Debug
-              </Link>
-            </div>
-
-            <div className="bg-base-100 rounded-2xl shadow-md p-8 text-center flex flex-col items-center border border-base-300 relative">
-              <div className="w-14 h-14 rounded-full hedera-gradient flex items-center justify-center mb-4">
-                <MagnifyingGlassIcon className="h-7 w-7 text-white" />
-              </div>
-              <h3 className="font-bold text-lg mb-2">Block Explorer</h3>
-              <p className="text-base-content/70 text-sm m-0 mb-6">
-                Explore transactions, addresses, and contract activity on Hedera.
-              </p>
-              <Link href="/blockexplorer" passHref className="btn btn-primary btn-sm">
-                Open Block Explorer
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-8 bg-base-100 rounded-2xl shadow-md p-8 border border-base-300">
-            <h3 className="font-bold text-lg mb-4 text-center">Quick Start</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">1</span>
-                <div>
-                  <p className="m-0 font-medium">Edit the frontend</p>
-                  <code className="text-xs bg-base-200 px-2 py-1 rounded">packages/nextjs/app/page.tsx</code>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">2</span>
-                <div>
-                  <p className="m-0 font-medium">Edit your contract</p>
-                  <div className="flex flex-col gap-1">
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      packages/anvil/contracts/HederaToken.sol
-                    </code>
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      packages/foundry/contracts/HederaToken.sol
-                    </code>
+              <div className="mt-5">
+                <p className="mb-2 text-sm font-semibold">Recent Mirror Node results</p>
+                {status?.runs?.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Transaction</th>
+                          <th>Consensus</th>
+                          <th>Result</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {status.runs.map((run, index) => (
+                          <tr key={`${run.hash ?? "run"}-${index}`}>
+                            <td>
+                              {run.hashscan ? (
+                                <a
+                                  className="link link-primary font-mono text-xs"
+                                  href={run.hashscan}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {shortAddress(run.hash ?? undefined)}
+                                </a>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="text-xs">{run.consensusTimestamp ?? "—"}</td>
+                            <td className="font-mono text-xs">{run.result ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                </div>
+                ) : (
+                  <p className="m-0 text-sm text-base-content/60">No Mirror Node results were returned.</p>
+                )}
               </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">3</span>
-                <div>
-                  <p className="m-0 font-medium">Get testnet HBAR</p>
-                  <HederaPortalFaucet variant="link" label="portal.hedera.com/faucet" showIcon={false} />
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="font-bold text-primary text-lg leading-none mt-0.5">4</span>
-                <div>
-                  <p className="m-0 font-medium">Deploy to Hedera</p>
-                  <div className="flex flex-col gap-1">
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      yarn foundry:deploy --network hederaTestnet
-                    </code>
-                    <code className="text-xs bg-base-200 px-2 py-1 rounded">
-                      yarn foundry:deploy --network hedera_testnet
-                    </code>
-                  </div>
-                </div>
-              </div>
-            </div>
+            </>
+          )}
+        </section>
+
+        <section className="grid gap-5 md:grid-cols-3">
+          <Link
+            href="/vault"
+            className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <WalletIcon className="mb-4 h-8 w-8 text-primary" />
+            <h2 className="m-0 text-xl font-bold">Build a vault</h2>
+            <p className="mt-2 text-sm text-base-content/65">
+              Connect HashPack or MetaMask, create a vault, fund it in HBAR, and start or stop its schedule.
+            </p>
+          </Link>
+          <Link
+            href="/lab"
+            className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+          >
+            <BeakerIcon className="mb-4 h-8 w-8 text-primary" />
+            <h2 className="m-0 text-xl font-bold">Fast-forward locally</h2>
+            <p className="mt-2 text-sm text-base-content/65">
+              Start the mainnet fork, advance Anvil time, and run due schedule calls with their recorded gas limit.
+            </p>
+          </Link>
+          <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+            <ClockIcon className="mb-4 h-8 w-8 text-primary" />
+            <h2 className="m-0 text-xl font-bold">One-command start</h2>
+            <code className="mt-3 block rounded-lg bg-base-200 p-3 text-xs">yarn fork:mainnet</code>
+            <p className="mt-3 text-sm text-base-content/65">
+              The local lab keeps live fork state and emulator evidence separate from the deployed testnet vault.
+            </p>
           </div>
-        </div>
-      </div>
-    </>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+          <h2 className="m-0 text-xl font-bold">Need testnet HBAR?</h2>
+          <p className="mt-2 text-sm text-base-content/65">
+            The deployed vault and your own vault require a funded testnet account.
+          </p>
+          <div className="mt-4">
+            <HederaPortalFaucet variant="link" label="Open portal.hedera.com/faucet" showIcon={false} />
+          </div>
+        </section>
+      </main>
+    </div>
   );
 };
 

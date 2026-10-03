@@ -56,8 +56,7 @@ contract RecurringBuy {
     uint256 public constant DEFAULT_MAX_PRICE_AGE = 2 hours;
 
     /// @notice The account that owns this vault.
-    // forge-lint: disable-next-line(screaming-snake-case-immutable)
-    address public immutable owner;
+    address public owner;
 
     /// @notice The Supra push-oracle contract used for HBAR/USD prices.
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
@@ -107,6 +106,9 @@ contract RecurringBuy {
     /// @notice Raised when a caller other than the vault reaches execute.
     error OnlyVault();
 
+    /// @notice Raised when ownership would be assigned to the zero address.
+    error InvalidOwner();
+
     /// @notice Raised when the configuration is incomplete or unsafe.
     error InvalidConfiguration();
 
@@ -140,6 +142,9 @@ contract RecurringBuy {
     /// @notice Emitted when the owner stops the vault.
     event Stopped(int64 responseCode);
 
+    /// @notice Emitted when the factory or current owner changes control.
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     /// @param supraAddress The deployed Supra push-oracle contract.
     /// @param routerAddress The deployed SaucerSwap V1 router.
     constructor(address supraAddress, address routerAddress) {
@@ -155,6 +160,15 @@ contract RecurringBuy {
 
     /// @notice Allows the owner to deposit tinybars for future purchases and fees.
     function deposit() external payable onlyOwner { }
+
+    /// @notice Transfers control to a new owner. The vault factory uses this
+    ///      once, atomically, after deploying a vault on behalf of a wallet.
+    function transferOwnership(address newOwner) external onlyOwner {
+        if (newOwner == address(0)) revert InvalidOwner();
+        address previousOwner = owner;
+        owner = newOwner;
+        emit OwnershipTransferred(previousOwner, newOwner);
+    }
 
     /// @notice Accepts direct HBAR funding from an account or a scheduled call.
     receive() external payable { }
