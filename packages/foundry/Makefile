@@ -20,13 +20,13 @@ deploy:
 	@mkdir -p deployments
 	@if [ "$(RPC_URL)" = "localhost" ]; then \
 		rm -rf broadcast/Deploy.s.sol/31337; \
-		forge script $(DEPLOY_SCRIPT) --rpc-url localhost --unlocked --sender $${LOCALHOST_SENDER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266} --broadcast --ffi; \
+		forge script $(DEPLOY_SCRIPT) --force --disable-labels --rpc-url localhost --unlocked --sender $${LOCALHOST_SENDER:-0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266} --broadcast --ffi; \
 	elif [ "$(RPC_URL)" = "hedera_testnet" ]; then \
-		forge script $(DEPLOY_SCRIPT) --rpc-url https://testnet.hashio.io/api --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow --legacy; \
+		forge script $(DEPLOY_SCRIPT) --force --disable-labels --rpc-url https://testnet.hashio.io/api --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow --legacy; \
 	elif [ "$(RPC_URL)" = "hedera_mainnet" ]; then \
-		forge script $(DEPLOY_SCRIPT) --rpc-url https://mainnet.hashio.io/api --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow --legacy; \
+		forge script $(DEPLOY_SCRIPT) --force --disable-labels --rpc-url https://mainnet.hashio.io/api --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow --legacy; \
 	else \
-		forge script $(DEPLOY_SCRIPT) --rpc-url $(RPC_URL) --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow; \
+		forge script $(DEPLOY_SCRIPT) --force --disable-labels --rpc-url $(RPC_URL) --account $(ETH_KEYSTORE_ACCOUNT) --broadcast --ffi --slow; \
 	fi
 
 # Deploy and generate ABIs (used by scripts-js/parseArgs.js)
