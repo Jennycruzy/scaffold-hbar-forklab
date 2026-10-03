@@ -4,7 +4,7 @@ This file records commands run against the pinned toolchain and live Hedera serv
 
 ## Latest HEAD checks
 
-After the Bonzo sweep change at commit `403c344`, the repository-side checks returned:
+After the Hashscan transaction-link fix at commit `d577a57`, the repository-side checks returned:
 
 ```text
 $ node .yarn/releases/yarn-3.2.3.cjs lint
@@ -16,7 +16,12 @@ exit 0
 
 $ node .yarn/releases/yarn-3.2.3.cjs next:build
 ✓ Compiled successfully
-✓ Generating static pages (14/14)
+✓ Generating static pages (15/15)
+
+$ node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
+Ran 6 test suites in 136.36s: 19 tests passed, 0 failed, 2 skipped (21 total tests)
+  test_testnetHbarToSauceMatchesRouterQuote: PASS
+  test_testnetRecurringBuyRunsAndReschedules: PASS
 
 $ node .yarn/releases/yarn-3.2.3.cjs foundry:compile
 Compiler run successful!
@@ -26,6 +31,10 @@ $ node .yarn/releases/yarn-3.2.3.cjs foundry:test
 
 $ node scripts/validate-template.mjs
 template.json: valid TemplateManifestSchema
+
+The testnet-fork run used the real WHBAR-SAUCE pair and verified the router's quoted output. Its recurring-buy
+case intentionally records a deviation skip because SAUCE is not USD-denominated; it does not claim a stablecoin
+purchase or live testnet schedule execution.
 ```
 
 The latest-HEAD fresh-template installer run and latest full network-fork reruns remain separate acceptance work; the earlier fresh-copy results below are retained with their original commit instead of being relabeled.
