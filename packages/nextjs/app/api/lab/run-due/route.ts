@@ -1,34 +1,106 @@
 import { NextResponse } from "next/server";
+import { decodeFunctionResult, encodeFunctionData, parseAbi } from "viem";
 import { localRpcCall } from "~~/lib/lab/rpc";
+import { tinybarToWeibar } from "~~/utils/forklab/units";
 
-type DueSchedule = { payer: `0x${string}`; to: `0x${string}`; data: `0x${string}`; gas: string };
+const HSS = "0x000000000000000000000000000000000000016b";
+const hssAbi = parseAbi([
+  "function pending() view returns (address[] schedules)",
+  "function schedule(address) view returns ((address to,address payer,uint256 expiry,uint256 gasLimit,uint64 value,bytes data,int64 status,bool success,bytes returnData,uint256 createdAt,uint256 executedAt) info)",
+  "function shouldExternalRunnerCall(address) view returns (bool)",
+  "function recordExternalExecution(address,bool,bytes) returns (int64)",
+]);
 
-export async function GET() {
-  return NextResponse.json({
-    ok: false,
-    offline: true,
-    message: "POST due schedule records to run them on a local fork.",
-  });
+type Hex = `0x${string}`;
+type Receipt = { status: Hex; transactionHash: Hex };
+
+async function callHss(
+  functionName: "pending" | "schedule" | "shouldExternalRunnerCall",
+  args: readonly unknown[] = [],
+) {
+  const data = encodeFunctionData({ abi: hssAbi, functionName, args } as never);
+  const result = await localRpcCall<Hex>("eth_call", [{ to: HSS, data }, "latest"]);
+  return decodeFunctionResult({ abi: hssAbi, functionName, data: result } as never);
 }
 
-export async function POST(request: Request) {
+async function waitForReceipt(hash: Hex): Promise<Receipt> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const receipt = await localRpcCall<Receipt | null>("eth_getTransactionReceipt", [hash]);
+    if (receipt) return receipt;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timed out waiting for ${hash}`);
+}
+
+export async function GET() {
   try {
-    const body = (await request.json()) as { schedules?: DueSchedule[] };
-    const schedules = Array.isArray(body.schedules) ? body.schedules : [];
-    const transactions = [];
-    for (const schedule of schedules) {
-      await localRpcCall("anvil_impersonateAccount", [schedule.payer]);
-      const hash = await localRpcCall<string>("eth_sendTransaction", [
-        {
-          from: schedule.payer,
-          to: schedule.to,
-          data: schedule.data,
-          gas: `0x${BigInt(schedule.gas).toString(16)}`,
-        },
+    const schedules = (await callHss("pending")) as Hex[];
+    return NextResponse.json({ ok: true, pending: schedules });
+  } catch (error) {
+    return NextResponse.json({
+      ok: false,
+      offline: true,
+      message: "Start `yarn fork:mainnet` first.",
+      detail: String(error),
+    });
+  }
+}
+
+export async function POST() {
+  try {
+    const schedules = (await callHss("pending")) as Hex[];
+    const block = await localRpcCall<{ timestamp: Hex }>("eth_getBlockByNumber", ["latest", false]);
+    const now = BigInt(block.timestamp);
+    const executed = [];
+    const waiting = [];
+
+    for (const scheduleAddress of schedules) {
+      const info = (await callHss("schedule", [scheduleAddress])) as {
+        to: Hex;
+        payer: Hex;
+        expiry: bigint;
+        gasLimit: bigint;
+        value: bigint;
+        data: Hex;
+        status: bigint;
+      };
+      const { to, payer, expiry, gasLimit, value, data } = info;
+      if (expiry > now) {
+        waiting.push({ schedule: scheduleAddress, expiry: expiry.toString() });
+        continue;
+      }
+
+      await localRpcCall("anvil_impersonateAccount", [payer]);
+      const shouldCall = (await callHss("shouldExternalRunnerCall", [scheduleAddress])) as boolean;
+      let success = false;
+      let targetHash: Hex | null = null;
+      if (shouldCall) {
+        targetHash = await localRpcCall<Hex>("eth_sendTransaction", [
+          {
+            from: payer,
+            to,
+            data,
+            gas: `0x${gasLimit.toString(16)}`,
+            value: `0x${tinybarToWeibar(value).toString(16)}`,
+          },
+        ]);
+        success = BigInt((await waitForReceipt(targetHash)).status) === 1n;
+      }
+
+      const settlementData = encodeFunctionData({
+        abi: hssAbi,
+        functionName: "recordExternalExecution",
+        args: [scheduleAddress, success, "0x"],
+      });
+      const settlementHash = await localRpcCall<Hex>("eth_sendTransaction", [
+        { from: payer, to: HSS, data: settlementData, gas: "0x7a120" },
       ]);
-      transactions.push({ ...schedule, hash });
+      await waitForReceipt(settlementHash);
+      const settled = (await callHss("schedule", [scheduleAddress])) as { status: bigint };
+      executed.push({ schedule: scheduleAddress, targetHash, settlementHash, status: String(settled.status) });
+      await localRpcCall("anvil_stopImpersonatingAccount", [payer]);
     }
-    return NextResponse.json({ ok: true, executed: transactions });
+    return NextResponse.json({ ok: true, executed, waiting }, { status: 200 });
   } catch (error) {
     return NextResponse.json({
       ok: false,

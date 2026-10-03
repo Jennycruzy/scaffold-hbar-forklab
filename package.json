@@ -25,6 +25,7 @@
     "foundry:deploy": "yarn workspace @forklab/foundry deploy",
     "foundry:flatten": "yarn workspace @forklab/foundry flatten",
     "foundry:fork": "yarn workspace @forklab/foundry fork",
+    "fork:mainnet": "yarn workspace @forklab/foundry fork:mainnet",
     "foundry:format": "yarn workspace @forklab/foundry format",
     "foundry:lint": "yarn workspace @forklab/foundry lint",
     "foundry:lint-staged": "yarn workspace @forklab/foundry lint-staged",

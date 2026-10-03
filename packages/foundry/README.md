@@ -27,10 +27,10 @@ The first command is offline and uses chain id `31337`. The fork commands use th
 ## Local chain
 
 ```bash
-node .yarn/releases/yarn-3.2.3.cjs foundry:chain
+node .yarn/releases/yarn-3.2.3.cjs fork:mainnet
 ```
 
-This starts plain Anvil on chain id `31337`. The HSS emulator can be installed at `0x16b` by a test or local runner with `Forklab.setUp()`.
+This compiles the emulator, starts Hedera's HTS JSON-RPC forwarder, forks pinned mainnet state into Anvil on chain id `295`, and installs HSS at `0x16b`. Start the Next.js app separately and use `/lab` to advance time and execute due schedules. `foundry:chain` remains available when a plain chain-id `31337` Anvil instance is needed.
 
 ## Deploy
 

@@ -60,6 +60,31 @@ Installation succeeded. The reported findings are in the resolved dependency tre
 
 The production build was started without a wallet or network configuration. `/`, `/vault`, `/lab`, `/debug`, `/blockexplorer`, `/api/hedera/account`, `/api/lab/fast-forward`, `/api/lab/run-due`, and `/api/recurring-buy/status` each returned HTTP 200. The status APIs returned explicit offline/unconfigured JSON instead of throwing.
 
+### Local Anvil runner
+
+The local launcher was run against pinned mainnet block `100579000`. The official `@hashgraph/system-contracts-forking/forwarder` supplied HTS state, and the launcher installed HSS with `anvil_setCode`:
+
+```text
+Forklab ready at http://127.0.0.1:8545: mainnet block 100579000, HTS forwarder http://127.0.0.1:295, HSS 0x000000000000000000000000000000000000016b
+$ cast call 0x000000000000000000000000000000000006f89a 'symbol()(string)' --rpc-url http://127.0.0.1:8545
+"USDC"
+$ cast call 0x000000000000000000000000000000000000016b 'configuration()(uint256,uint256,uint256,uint256)' --rpc-url http://127.0.0.1:8545
+10
+15000000
+5356800
+0
+```
+
+An HSS schedule targeting a fork-local fixture was then advanced by the `/api/lab/fast-forward` route and executed by `/api/lab/run-due`:
+
+```json
+{"ok":true,"pending":["0x00000000000000000000000000000000f0000000"]}
+{"ok":true,"seconds":3600,"rpc":"http://127.0.0.1:8545"}
+{"ok":true,"executed":[{"schedule":"0x00000000000000000000000000000000f0000000","targetHash":"0xfe025cb093bae57d00ce1302d3ceae93a518a00bfa94944f4589190b134970d2","settlementHash":"0x15f3d656da47a17192320ca4a99d904441ec40e05cc0bd424678abf7e95426e6","status":"22"}],"waiting":[]}
+```
+
+The target's recorded marker was `77`, and `pending()` returned `[]` after settlement. Anvil mode deliberately leaves Foundry-only schedule-address delete forwarders disabled; direct `deleteSchedule(address)` remains available.
+
 Tracked secret-name checks found no `.env`, keystore, or `.pem` file. Hex-string review found only the documented Supra feed identifier, a documented bytecode excerpt, and bytecode fixtures under `research/fork-repros/`; none is a private key. The banned-word check is empty across authored files and commit messages. The checked-in Yarn 3.2.3 release is generated third-party code and is excluded from the authored-file text check.
 
 ## Toolchain and networks

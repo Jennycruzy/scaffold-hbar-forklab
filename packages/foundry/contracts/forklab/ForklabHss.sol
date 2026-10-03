@@ -81,6 +81,7 @@ contract ForklabHss is IHederaScheduleService {
     uint256 private _maxExecutionsPerRun = 100;
     uint256 private _scheduleFeeTinybars;
     bool private _strictDelegatecall = true;
+    bool private _installDeleteForwarders = true;
 
     /// @notice Emitted when a schedule is created.
     event ScheduleCreated(
@@ -107,7 +108,6 @@ contract ForklabHss is IHederaScheduleService {
         external
         returns (int64 responseCode, address scheduleAddress)
     {
-        if (address(this) != HSS_ADDRESS) return _forwardScheduleCall();
         return _create(to, msg.sender, expirySecond, gasLimit, value, callData, false, false);
     }
 
@@ -120,7 +120,6 @@ contract ForklabHss is IHederaScheduleService {
         uint64 value,
         bytes calldata callData
     ) external returns (int64 responseCode, address scheduleAddress) {
-        if (address(this) != HSS_ADDRESS) return _forwardScheduleCall();
         return _create(to, payer, expirySecond, gasLimit, value, callData, true, false);
     }
 
@@ -133,7 +132,6 @@ contract ForklabHss is IHederaScheduleService {
         uint64 value,
         bytes calldata callData
     ) external returns (int64 responseCode, address scheduleAddress) {
-        if (address(this) != HSS_ADDRESS) return _forwardScheduleCall();
         return _create(to, payer, expirySecond, gasLimit, value, callData, true, true);
     }
 
@@ -219,6 +217,16 @@ contract ForklabHss is IHederaScheduleService {
         return state.info.status;
     }
 
+    /// @notice Tells an external runner whether it may call the target.
+    /// @dev False means the runner must settle without calling the target; the
+    ///      settlement function records the applicable signature status.
+    function shouldExternalRunnerCall(address scheduleAddress) external view returns (bool) {
+        ScheduleState storage state = _schedules[scheduleAddress];
+        if (!state.exists || state.terminal || block.timestamp < state.info.expiry) return false;
+        if (state.requiresSignature && !state.signed) return false;
+        return !state.rejectPayerAtExecution;
+    }
+
     /// @notice Sets the per-second schedule count limit used by this emulator.
     /// @param value The maximum number of schedules for one second.
     function setMaxSchedulesPerSecond(uint256 value) external {
@@ -247,6 +255,12 @@ contract ForklabHss is IHederaScheduleService {
     /// @param value True to reproduce Hedera's strict contract-key rule.
     function setStrictDelegatecallRule(bool value) external {
         _strictDelegatecall = value;
+    }
+
+    /// @notice Enables schedule-address delete redirect bytecode in Foundry.
+    /// @dev Leave disabled for code installed in Anvil, where VM cheatcodes do not exist.
+    function setInstallDeleteForwarders(bool value) external {
+        _installDeleteForwarders = value;
     }
 
     /// @notice Marks a proxy whose implementation reaches HSS through delegatecall.
@@ -342,7 +356,7 @@ contract ForklabHss is IHederaScheduleService {
         _scheduleOrder.push(scheduleAddress);
         _capacity[expirySecond].scheduleCount++;
         _capacity[expirySecond].gasUsed += gasLimit;
-        _installDeleteForwarder(scheduleAddress);
+        if (_installDeleteForwarders) _installDeleteForwarder(scheduleAddress);
 
         emit ScheduleCreated(scheduleAddress, payer, to, expirySecond, gasLimit, value, callData);
         return (SUCCESS, scheduleAddress);
@@ -448,12 +462,6 @@ contract ForklabHss is IHederaScheduleService {
         state.info.status = SUCCESS;
         emit ScheduleDeleted(scheduleAddress);
         return SUCCESS;
-    }
-
-    function _forwardScheduleCall() private returns (int64 responseCode, address scheduleAddress) {
-        (bool success, bytes memory result) = HSS_ADDRESS.call(msg.data);
-        if (!success || result.length < 64) return (INVALID_SIGNATURE, address(0));
-        return abi.decode(result, (int64, address));
     }
 
     function _installDeleteForwarder(address scheduleAddress) private {

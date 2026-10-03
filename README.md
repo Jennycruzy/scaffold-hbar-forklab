@@ -36,10 +36,13 @@ node .yarn/releases/yarn-3.2.3.cjs foundry:doctor
 node .yarn/releases/yarn-3.2.3.cjs foundry:test
 node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
 node packages/foundry/scripts-js/probeScheduleLimits.js
+node .yarn/releases/yarn-3.2.3.cjs fork:mainnet
 node .yarn/releases/yarn-3.2.3.cjs next:dev
 ```
 
 `foundry:test` is offline and runs on chain id `31337`. `foundry:test:fork` uses the pinned mainnet block in `packages/foundry/scripts-js/forkBlocks.json`; refresh it with `foundry:fork:pin` when a new snapshot is needed. The recurring-buy suite reads Supra's real HBAR/USD push feed directly from the pinned Hedera state and needs no oracle API key.
+
+`fork:mainnet` starts Anvil at `http://127.0.0.1:8545` through Hedera's `jsonRPCForwarder`, pins block `100579000`, and installs the current `ForklabHss` bytecode at `0x16b`. Keep it running beside `next:dev`; `/lab` advances time, discovers pending HSS records, impersonates their stored payers, sends their target transactions with the stored gas limit, and settles the receipt status in HSS.
 
 ### Oracle choice
 
@@ -194,6 +197,7 @@ contract ScheduledCallTest is Test {
 - It does not prove a deployment; testnet claims belong in `docs/TESTNET_PROOF.md` with resolvable links.
 - It cannot infer an earlier delegatecall from the ordinary call frame received by `0x16b`; proxy scheduling must be opted in with `Forklab.markDelegateScheduler`.
 - It does not protect configuration setters. Any contract on the fork can change emulator limits, fees, delegate markers, and rule settings because Forklab is a test tool.
+- Anvil mode cannot install per-schedule delete redirect bytecode because that uses Foundry cheatcodes. Use `deleteSchedule(address)` there; schedule-address redirects remain enabled and tested in Forge.
 
 ## Troubleshooting
 

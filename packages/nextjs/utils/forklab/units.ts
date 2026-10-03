@@ -14,6 +14,10 @@ export function hbarToWeibar(value: string): bigint {
   return parseUnits(value || "0", 18);
 }
 
+export function tinybarToWeibar(value: bigint | number | string): bigint {
+  return BigInt(value) * WEIBARS_PER_TINYBAR;
+}
+
 export function tinybarToHbar(value: bigint | number | string): string {
   return formatUnits(BigInt(value), 8);
 }

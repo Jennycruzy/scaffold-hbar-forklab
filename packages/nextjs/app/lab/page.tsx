@@ -6,7 +6,6 @@ import { BeakerIcon, ExclamationTriangleIcon, PlayIcon } from "@heroicons/react/
 
 const Lab: NextPage = () => {
   const [seconds, setSeconds] = useState("3600");
-  const [schedules, setSchedules] = useState("[]");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -29,11 +28,8 @@ const Lab: NextPage = () => {
   const runDue = async () => {
     setBusy(true);
     try {
-      const parsed = JSON.parse(schedules);
       const response = await fetch("/api/lab/run-due", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ schedules: parsed }),
       });
       setResult(JSON.stringify(await response.json(), null, 2));
     } catch (error) {
@@ -88,16 +84,11 @@ const Lab: NextPage = () => {
         <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
           <h2 className="m-0 text-xl font-bold">Run due calls</h2>
           <p className="mt-2 text-sm text-base-content/60">
-            Paste due schedule records with <code>payer</code>, <code>to</code>, <code>data</code>, and stored numeric{" "}
-            <code>gas</code>.
+            Discovers pending HSS records, impersonates each due payer, executes its stored call and reads the settled
+            status.
           </p>
-          <textarea
-            className="textarea textarea-bordered mt-5 h-32 w-full font-mono text-xs"
-            value={schedules}
-            onChange={event => setSchedules(event.target.value)}
-          />
           <button className="btn btn-primary mt-4 gap-2" disabled={busy} onClick={runDue}>
-            <PlayIcon className="h-4 w-4" /> Impersonate and send
+            <PlayIcon className="h-4 w-4" /> Run due schedules
           </button>
         </div>
       </section>
