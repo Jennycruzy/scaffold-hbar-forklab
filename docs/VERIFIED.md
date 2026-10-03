@@ -154,7 +154,47 @@ The schedule emulator uses the specified service values: success `22`, invalid c
 
 ## Supra HBAR/USD push feed
 
+### Oracle choice
+
+The implementation deliberately uses Supra instead of Pyth. Pyth's upgrade guide says that every Hermes user has needed an API key since 26 August 2026, that signup includes a free trial, and that paid plans cover ongoing use:
+
+```text
+https://docs.pyth.network/price-feeds/core/upgrade/preparing
+```
+
+An unauthenticated request on 3 Oct 2026 confirms the operational consequence:
+
+```text
+curl -sS -i --max-time 30 'https://hermes.pyth.network/v2/updates/price/latest?ids[]=0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43'
+```
+
+```text
+HTTP/2 401
+content-type: text/plain; charset=utf-8
+content-length: 12
+
+unauthorized
+```
+
+Supra pair `432` is readable from its Hedera push-feed contracts without an API credential. Supra publishes the push feed; tests do not update it. The Pyth requirement to update the oracle with real data before a run is therefore represented here by reading the real on-chain observation at the pinned fork block.
+
 Supra's official network list identifies the Hedera mainnet push-oracle contract as `0xD02cc7a670047b6b012556A88e275c685d25e0c9` and the testnet contract as `0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917`. Its data-pair list identifies HBAR/USD as standard pair `432`.
+
+Supra's network table lists a one-hour push frequency for both Hedera mainnet and Hedera testnet. `RecurringBuy.DEFAULT_MAX_PRICE_AGE` is consequently two hours (`7,200` seconds), above the documented interval. `configure` still accepts an explicit stricter or looser value so tests can exercise stale observations.
+
+```text
+https://docs.supra.com/oracles/data-feeds/push-oracle/networks
+https://docs.supra.com/oracles/data-feeds/data-feeds-index
+```
+
+Two live reads 4 minutes 26 seconds apart did not produce different rounds. That is consistent with the documented one-hour frequency and means the requested "different rounds a few minutes apart" assertion could not be verified in this observation window; no contrary result is claimed.
+
+```text
+2026-10-03T01:55:17Z mainnet (1790990299000, 18, 1790990299169, 101869000000000000)
+2026-10-03T01:55:17Z testnet (1790989379000, 18, 1790989379167, 102105000000000000)
+2026-10-03T01:59:43Z mainnet (1790990299000, 18, 1790990299169, 101869000000000000)
+2026-10-03T01:59:43Z testnet (1790989379000, 18, 1790989379167, 102105000000000000)
+```
 
 Command:
 

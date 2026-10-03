@@ -51,6 +51,9 @@ contract RecurringBuy {
     /// @notice Supra's HBAR/USD data-pair index.
     uint256 public constant HBAR_USD_PAIR_INDEX = 432;
 
+    /// @notice Recommended staleness limit for Hedera's one-hour Supra push interval.
+    uint256 public constant DEFAULT_MAX_PRICE_AGE = 2 hours;
+
     /// @notice The account that owns this vault.
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable owner;
@@ -348,8 +351,7 @@ contract RecurringBuy {
     }
 
     function _supraTimestampSeconds(uint256 timestamp) private pure returns (uint256) {
-        if (timestamp > 10_000_000_000) return timestamp / 1_000;
-        return timestamp;
+        return timestamp / 1_000;
     }
 
     function _deviationBps(uint256 expectedAmount, uint256 actualAmount) private pure returns (uint256) {
