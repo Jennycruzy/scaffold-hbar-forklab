@@ -13,7 +13,7 @@ All values in this document come from Hedera testnet transactions or the public 
 - Block: `41319847`
 - Gas used: `2788191`
 - [Contract on Hashscan](https://hashscan.io/testnet/contract/0.0.10847446)
-- [Deployment transaction on Hashscan](https://hashscan.io/testnet/transaction/0.0.7314364-1791062325-907461327)
+- [Deployment transaction on Hashscan](https://hashscan.io/testnet/transaction/1791062333.855506104?tid=0.0.7314364-1791062325-907461327)
 - [Mirror Node contract record](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10847446)
 - [Mirror Node contract result](https://testnet.mirrornode.hedera.com/api/v1/contracts/results/0xa542b4e076c756fa7a82574a51a118485dbd0ecf58457f14ab664ba412f213bd)
 
@@ -33,7 +33,7 @@ Mirror Node result fields:
 
 The contract endpoint reports `deleted: false`, and `eth_getCode` returned 12,463 bytes of runtime bytecode.
 
-Hashscan returned HTTP 404 to command-line requests for its testnet homepage as well as the two entity links above on 3 October 2026. The links are therefore recorded but not claimed as machine-resolved; the public Mirror Node responses are the independent deployment verification.
+The transaction link uses Hashscan's contract-result format: the consensus timestamp is the path and the payer transaction ID is the `tid` query parameter. The public Mirror Node responses independently verify the same deployment.
 
 ## Scheduled execution evidence
 
