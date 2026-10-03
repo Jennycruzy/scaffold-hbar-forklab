@@ -117,9 +117,16 @@ executes due calls with the recorded payer, value, gas limit, and ordering.
 | `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | No | empty | `your-project-id` |
 | `HEDERA_MIRROR_MAINNET_URL` | No | `https://mainnet.mirrornode.hedera.com` | same URL |
 | `HEDERA_MIRROR_TESTNET_URL` | No | `https://testnet.mirrornode.hedera.com` | same URL |
+| `FORKLAB_MIRROR_LOG_URLS` | No | `false` | `true` |
 | `LOCALHOST_KEYSTORE_ACCOUNT` | No | `scaffold-hbar-default` | `my-testnet-account` |
 
 Do not commit `.env` files, private keys, or keystores.
+
+Both the Solidity fork adapter and the Next.js server read the `HEDERA_MIRROR_*_URL` origins and append their API paths. Set `FORKLAB_MIRROR_LOG_URLS=true` to print every Solidity adapter URL while diagnosing snapshot mismatches; URL logging is off by default.
+
+## Fork timing
+
+The audit's first mainnet run took 4m29s for the original 11 fork tests at block `100579000`. On 3 October 2026, a warm-cache run of the expanded six-suite command took 2m40s (`real 160.01`): 31 passed, 0 failed, 0 skipped. The suite grew between measurements, so these are reproducible operational timings rather than a like-for-like benchmark.
 
 ## Deploy and start a testnet vault
 

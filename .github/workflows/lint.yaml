@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      - name: Install Foundry 1.5.0
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.0
+
       - name: Run nextjs lint
         run: yarn next:lint --max-warnings=0
 

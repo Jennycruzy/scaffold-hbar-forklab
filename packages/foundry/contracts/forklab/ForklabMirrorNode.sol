@@ -12,6 +12,15 @@ import { Surl } from "hedera-forking/Surl.sol";
 contract ForklabMirrorNode is MirrorNode {
     Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     mapping(string endpoint => string response) private _responses;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
+    uint256 private immutable _forkBlockNumber;
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
+    bool private immutable _logUrls;
+
+    constructor() {
+        _forkBlockNumber = block.number;
+        _logUrls = VM.envOr("FORKLAB_MIRROR_LOG_URLS", false);
+    }
 
     /// @notice Fetches token metadata at the fork timestamp.
     /// @param token The long-zero token address.
@@ -135,7 +144,7 @@ contract ForklabMirrorNode is MirrorNode {
     }
 
     function _withTimestamp(string memory endpoint) private returns (string memory) {
-        string memory json = this.fetchBlock(block.number);
+        string memory json = this.fetchBlock(_forkBlockNumber);
         string memory timestamp = VM.parseJsonString(json, ".timestamp.to");
         bytes memory endpointBytes = bytes(endpoint);
         for (uint256 i; i < endpointBytes.length; i++) {
@@ -148,15 +157,24 @@ contract ForklabMirrorNode is MirrorNode {
         json = _responses[endpoint];
         if (bytes(json).length != 0) return json;
         string memory url = string.concat(_mirrorNodeUrl(), endpoint);
-        console2.log(url);
+        if (_logUrls) console2.log(url);
         (uint256 status, bytes memory result) = Surl.get(url);
         json = string(result);
         require(status == 200 || status == 404, json);
     }
 
     function _mirrorNodeUrl() private view returns (string memory url) {
-        if (block.chainid == 295) return "https://mainnet-public.mirrornode.hedera.com/api/v1/";
-        if (block.chainid == 296) return "https://testnet.mirrornode.hedera.com/api/v1/";
+        if (block.chainid == 295) {
+            return string.concat(
+                VM.envOr("HEDERA_MIRROR_MAINNET_URL", string("https://mainnet-public.mirrornode.hedera.com")),
+                "/api/v1/"
+            );
+        }
+        if (block.chainid == 296) {
+            return string.concat(
+                VM.envOr("HEDERA_MIRROR_TESTNET_URL", string("https://testnet.mirrornode.hedera.com")), "/api/v1/"
+            );
+        }
         if (block.chainid == 297) return "https://previewnet.mirrornode.hedera.com/api/v1/";
         if (block.chainid == 298) return "http://localhost:5551/api/v1/";
         revert("Unsupported Hedera Mirror Node chain id");

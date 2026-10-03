@@ -1,6 +1,7 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 const EXPECTED_FORGE = "1.5.0";
+const MINIMUM_NODE = [20, 18, 3];
 const RPCS = {
   mainnet: {
     name: "mainnet",
@@ -67,10 +68,25 @@ function checkRpc(network) {
   return null;
 }
 
+const networkIndex = process.argv.indexOf("--network");
 const requestedNetwork =
-  process.argv[2] === "--network" ? process.argv[3] || "mainnet" : "mainnet";
+  networkIndex >= 0 ? process.argv[networkIndex + 1] || "mainnet" : "mainnet";
+const expectsFfiFlag = process.argv.includes("--expect-ffi");
 const network = RPCS[requestedNetwork];
 const failures = [];
+const warnings = [];
+
+const nodeVersion = process.versions.node.split(".").map(Number);
+const nodeIsSupported = MINIMUM_NODE.every(
+  (part, index) =>
+    nodeVersion[index] === part ||
+    (nodeVersion[index] > part &&
+      nodeVersion.slice(0, index).every((value, prior) => value === MINIMUM_NODE[prior])) ||
+    nodeVersion.slice(0, index).some((value, prior) => value > MINIMUM_NODE[prior])
+);
+if (!nodeIsSupported) {
+  failures.push(`node must be >=20.18.3; found ${process.versions.node}.`);
+}
 
 if (!network)
   failures.push(
@@ -95,6 +111,20 @@ if (!hasCommand("bash"))
   failures.push(
     "bash is not on PATH. macOS, Linux, or WSL is required for Mirror Node reads."
   );
+
+const forgeConfig = commandVersion("forge", ["config", "--json"]);
+try {
+  if (!forgeConfig || JSON.parse(forgeConfig).ffi !== true) {
+    warnings.push(
+      "Foundry FFI is disabled. Set `ffi = true` and run fork tests with `--ffi`; Mirror Node reads will fail otherwise."
+    );
+  }
+} catch {
+  warnings.push("Could not verify Foundry FFI configuration; fork tests require `ffi = true` and `--ffi`.");
+}
+if (!expectsFfiFlag) {
+  warnings.push("This check cannot see a later forge command. Ensure fork tests include the `--ffi` flag.");
+}
 if (network && hasCommand("curl")) {
   const rpcFailure = checkRpc(network);
   if (rpcFailure) failures.push(rpcFailure);
@@ -105,6 +135,7 @@ console.log(
     network?.name || requestedNetwork
   } RPC.`
 );
+for (const warning of warnings) console.warn(`WARNING: ${warning}`);
 if (failures.length > 0) {
   console.error("Environment checks failed:");
   for (const failure of failures) console.error(`- ${failure}`);

@@ -25,6 +25,8 @@ contract ScheduledVaultCompat {
     uint256 private constant SCHEDULE_GAS_LIMIT = 3_000_000;
     int64 private constant HSS_SUCCESS = 22;
 
+    // Retains the upstream public API name.
+    // forge-lint: disable-next-line(screaming-snake-case-immutable)
     address public immutable owner;
     ICompatExecutionStrategy public strategy;
     bytes public strategyConfig;

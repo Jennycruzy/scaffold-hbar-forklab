@@ -106,6 +106,38 @@ $ cast call --rpc-url https://testnet.hashio.io/api 0x00000000000000000000000000
 
 The router proof uses the real factory, pair reserves, WHBAR helper, USDC token, and SAUCE token. Test-account funding uses `vm.deal` only before the swap; no pool, oracle, or reserve storage is edited.
 
+### Mirror Node snapshot root cause
+
+The original token-swap reproduction failed with `UniswapV2: K` because the pair's `getReserves()` came from fork block `100579000`, while hedera-forking's emulated HTS `balanceOf` fetched the latest Mirror Node balance. Those values described different points in time. For the USDC/WHBAR pair `0xdb34c1ef944883f0e5a2fc18b6c1978b088bd31d`, the unbounded account response reported USDC `280690610677`, while the pair reserve at the pinned block was `283737632828`.
+
+```text
+cast call --rpc-url https://mainnet.hashio.io/api --block 100579000 \
+  0xdB34c1Ef944883f0e5A2fC18B6C1978B088bD31d 'getReserves()((uint112,uint112,uint32))'
+(283737632828, 272630825035359, 1790820743)
+
+curl -sS 'https://mainnet-public.mirrornode.hedera.com/api/v1/accounts/0xdB34c1Ef944883f0e5A2fC18B6C1978B088bD31d?transactions=false'
+... "token_id":"0.0.456858","balance":280690610677 ...
+```
+
+Forklab resolves the fork block once when `ForklabMirrorNode` is constructed and applies its `.timestamp.to` value (`1790821038.006379925`) to every supported HTS read. The corrected query returns the exact reserve:
+
+```text
+curl -sS 'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/0.0.456858/balances?account.id=0.0.1462797&timestamp=lte:1790821038.006379925'
+{"timestamp":"1790820958.778317875","balances":[{"account":"0.0.1462797","balance":283737632828,"decimals":6}],"links":{"next":null}}
+```
+
+The adapter now retains that original fork block even after a test calls `vm.roll` or `vm.warp`, and logs URLs only when `FORKLAB_MIRROR_LOG_URLS=true`. It deliberately does not write its response mapping: HTS invokes these reads through `STATICCALL`, so a cache write causes `StateChangeDuringStaticCall`.
+
+Warm-cache acceptance run on 3 October 2026 (the audit's first run was 4m29s for the then-current 11 fork tests):
+
+```text
+$ /usr/bin/time -p forge test --fork-url https://mainnet.hashio.io/api --chain-id 295 --fork-block-number 100579000 --fork-retries 3 --fork-retry-backoff 1000 --ffi
+Ran 6 test suites in 150.67s (289.96s CPU time): 31 tests passed, 0 failed, 0 skipped (31 total tests)
+real 160.01
+user 20.58
+sys 14.75
+```
+
 ## Selectors and response codes
 
 Command:

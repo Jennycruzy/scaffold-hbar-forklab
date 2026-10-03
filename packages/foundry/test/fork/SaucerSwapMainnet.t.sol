@@ -100,10 +100,10 @@ contract SaucerSwapMainnetTest is Test {
         assertEq(IERC20View(SAUCE).balanceOf(trader), quote[2]);
     }
 
-    /// @notice Confirms the pair's recorded reserve agrees with its emulated token balance.
+    /// @notice Confirms later local block numbers do not move Mirror reads off the fork snapshot.
     function test_pairReserveMatchesEmulatedUsdcBalance() external {
-        vm.roll(block.number);
         (uint112 reserve0, uint112 reserve1,) = IUniswapV2Pair(USDC_WHBAR_PAIR).getReserves();
+        vm.roll(block.number + 100);
         address token0 = IUniswapV2Pair(USDC_WHBAR_PAIR).token0();
         address token1 = IUniswapV2Pair(USDC_WHBAR_PAIR).token1();
         assertEq(token0, USDC);
