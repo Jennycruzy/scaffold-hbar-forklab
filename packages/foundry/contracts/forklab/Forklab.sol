@@ -132,6 +132,13 @@ library Forklab {
         ForklabHss(HSS_ADDRESS).setStrictDelegatecallRule(value);
     }
 
+    /// @notice Marks or unmarks a proxy that schedules from a delegated implementation frame.
+    /// @param scheduler The proxy address observed by HSS as msg.sender.
+    /// @param marked Whether schedules created by the proxy should fail payer validation.
+    function markDelegateScheduler(address scheduler, bool marked) internal {
+        ForklabHss(HSS_ADDRESS).markDelegateScheduler(scheduler, marked);
+    }
+
     /// @notice Sets the per-call execution cap used by runDue.
     /// @param value The maximum number of schedules processed in one run.
     function setMaxExecutionsPerRun(uint256 value) internal {

@@ -3,7 +3,12 @@ pragma solidity ^0.8.19;
 
 import { Test } from "forge-std/Test.sol";
 import { Forklab } from "../contracts/forklab/Forklab.sol";
-import { ForklabScheduleTarget, ForklabDelegateCaller } from "../contracts/forklab/ForklabFixtures.sol";
+import {
+    ForklabScheduleTarget,
+    ForklabDelegateSchedulerImplementation,
+    ForklabDelegateSchedulerProxy,
+    ForklabRecursiveScheduler
+} from "../contracts/forklab/ForklabFixtures.sol";
 import { IHederaScheduleService } from "../contracts/forklab/IHederaScheduleService.sol";
 
 /// @notice Offline behavioural tests for the local schedule emulator.
@@ -15,6 +20,7 @@ contract ForklabHssTest is Test {
     int64 private constant EXPIRY_TOO_FAR = 306;
     int64 private constant EXPIRY_BUSY = 370;
     int64 private constant INVALID_SCHEDULE_ID = 201;
+    int64 private constant SCHEDULE_ALREADY_DELETED = 212;
     int64 private constant SCHEDULE_ALREADY_EXECUTED = 213;
     int64 private constant INVALID_SIGNATURE = 7;
     int64 private constant INSUFFICIENT_PAYER_BALANCE = 10;
@@ -67,12 +73,19 @@ contract ForklabHssTest is Test {
     }
 
     function test_targetFailureAndOutOfGasAreCaptured() public {
+        Forklab.setScheduleFeeTinybars(100);
+        uint256 payerBefore = address(this).balance;
+        uint256 hssBefore = address(0x16b).balance;
         bytes memory revertData = abi.encodeCall(ForklabScheduleTarget.revertWith, (99));
-        (, address revertingSchedule) = HSS.scheduleCall(address(target), block.timestamp + 1, 200_000, 0, revertData);
+        (, address revertingSchedule) = HSS.scheduleCall(address(target), block.timestamp + 1, 200_000, 50, revertData);
+        vm.expectEmit(true, false, false, false, address(0x16b));
+        emit ScheduleExecuted(revertingSchedule, false, bytes(""));
         assertEq(Forklab.warp(1), 1);
         Forklab.ScheduleInfo memory reverted = Forklab.schedule(revertingSchedule);
         assertFalse(reverted.success);
         assertEq(reverted.returnData, abi.encodeWithSelector(ForklabScheduleTarget.TargetReverted.selector, 99));
+        assertEq(address(this).balance, payerBefore - 100);
+        assertEq(address(0x16b).balance, hssBefore + 100);
 
         bytes memory gasData = abi.encodeCall(ForklabScheduleTarget.burnGas, ());
         (, address gasSchedule) = HSS.scheduleCall(address(target), block.timestamp + 1, 20_000, 0, gasData);
@@ -87,6 +100,8 @@ contract ForklabHssTest is Test {
         assertEq(pastExpiry, EXPIRY_NOT_IN_FUTURE);
         (int64 farExpiry,) = HSS.scheduleCall(address(target), block.timestamp + 5_356_801, 1, 0, bytes(""));
         assertEq(farExpiry, EXPIRY_TOO_FAR);
+        assertTrue(HSS.hasScheduleCapacity(block.timestamp + 5_356_800, 1));
+        assertFalse(HSS.hasScheduleCapacity(block.timestamp + 5_356_801, 1));
 
         Forklab.setMaxSchedulesPerSecond(2);
         Forklab.setMaxGasPerSecond(100);
@@ -104,15 +119,24 @@ contract ForklabHssTest is Test {
         uint256 expiry = block.timestamp + 10;
         bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (1));
         (, address first) = HSS.scheduleCall(address(target), expiry, 100_000, 0, callData);
+        vm.expectEmit(true, false, false, true, address(0x16b));
+        emit ScheduleDeleted(first);
         int64 creatorCode = HSS.deleteSchedule(first);
         assertEq(creatorCode, SUCCESS);
+        assertEq(HSS.deleteSchedule(first), SCHEDULE_ALREADY_DELETED);
 
         (, address second) = HSS.scheduleCall(address(target), expiry, 100_000, 0, callData);
-        ForklabDelegateCaller stranger = new ForklabDelegateCaller();
-        vm.prank(address(stranger));
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
         int64 unauthorizedCode = HSS.deleteSchedule(second);
         assertEq(unauthorizedCode, UNAUTHORIZED);
 
+        vm.prank(stranger);
+        int64 unauthorizedRedirectCode = IHederaScheduleService(second).deleteSchedule();
+        assertEq(unauthorizedRedirectCode, UNAUTHORIZED);
+
+        vm.expectEmit(true, false, false, true, address(0x16b));
+        emit ScheduleDeleted(second);
         int64 redirectedCode = IHederaScheduleService(second).deleteSchedule();
         assertEq(redirectedCode, SUCCESS);
 
@@ -135,6 +159,8 @@ contract ForklabHssTest is Test {
 
         (, address unsignedSchedule) =
             HSS.scheduleCallWithPayer(address(target), address(this), block.timestamp + 1, 200_000, 0, callData);
+        vm.expectEmit(true, false, false, true, address(0x16b));
+        emit ScheduleExpired(unsignedSchedule);
         assertEq(Forklab.warp(1), 1);
         assertEq(Forklab.schedule(unsignedSchedule).status, INVALID_SIGNATURE);
 
@@ -163,28 +189,70 @@ contract ForklabHssTest is Test {
         Forklab.setMaxExecutionsPerRun(100);
     }
 
-    function test_delegatecallRuleCanBeDisabled() public {
-        ForklabDelegateCaller caller = new ForklabDelegateCaller();
+    function test_sameSecondSchedulesExecuteInCreationOrder() public {
+        uint256 expiry = block.timestamp + 1;
+        HSS.scheduleCall(address(target), expiry, 200_000, 0, abi.encodeCall(target.record, (10)));
+        HSS.scheduleCall(address(target), expiry, 200_000, 0, abi.encodeCall(target.record, (20)));
+        HSS.scheduleCall(address(target), expiry, 200_000, 0, abi.encodeCall(target.record, (30)));
+        assertEq(Forklab.warp(1), 3);
+        assertEq(target.markerAt(0), 10);
+        assertEq(target.markerAt(1), 20);
+        assertEq(target.markerAt(2), 30);
+    }
+
+    function test_lateExecutionRecordsCurrentTimestamp() public {
+        (, address scheduleAddress) = HSS.scheduleCall(
+            address(target), block.timestamp + 1, 200_000, 0, abi.encodeCall(ForklabScheduleTarget.record, (55))
+        );
+        uint256 lateTimestamp = block.timestamp + 100;
+        assertEq(Forklab.warpTo(lateTimestamp), 1);
+        assertEq(Forklab.schedule(scheduleAddress).executedAt, lateTimestamp);
+    }
+
+    function test_contractReschedulesItselfFiveTimesThenStops() public {
+        ForklabRecursiveScheduler recursive = new ForklabRecursiveScheduler();
+        (int64 code,) = recursive.start();
+        assertEq(code, SUCCESS);
+        for (uint256 i; i < 5; i++) {
+            assertEq(Forklab.warp(1), 1);
+        }
+        assertEq(recursive.callCount(), 5);
+        assertEq(Forklab.pending().length, 0);
+    }
+
+    function test_delegatecallScheduleCreatesThenFailsAtExecutionAndRuleCanBeDisabled() public {
+        ForklabDelegateSchedulerImplementation implementation = new ForklabDelegateSchedulerImplementation();
+        ForklabDelegateSchedulerProxy proxy = new ForklabDelegateSchedulerProxy(address(implementation));
+        ForklabDelegateSchedulerImplementation scheduler = ForklabDelegateSchedulerImplementation(address(proxy));
+        Forklab.markDelegateScheduler(address(proxy), true);
+
         bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (44));
-        bytes memory payload =
-            abi.encodeCall(HSS.scheduleCall, (address(target), block.timestamp + 1, 200_000, 0, callData));
-        bytes memory strictResult = caller.scheduleThroughDelegate(payload);
-        (int64 strictCode,) = abi.decode(strictResult, (int64, address));
-        assertEq(strictCode, INVALID_SIGNATURE);
+        (int64 strictCode, address rejectedAtExecution) =
+            scheduler.schedule(address(target), block.timestamp + 1, 200_000, callData);
+        assertEq(strictCode, SUCCESS);
+        assertNotEq(rejectedAtExecution, address(0));
+        assertEq(Forklab.warp(1), 1);
+        assertEq(Forklab.schedule(rejectedAtExecution).status, INVALID_SIGNATURE);
+        assertFalse(Forklab.schedule(rejectedAtExecution).success);
+        assertEq(target.callCount(), 0);
 
         Forklab.strictDelegatecallRule(false);
-        vm.deal(address(caller), 1 ether);
-        bytes memory allowedResult = caller.scheduleThroughDelegate(payload);
-        (int64 allowedCode, address scheduleAddress) = abi.decode(allowedResult, (int64, address));
+        (int64 allowedCode, address scheduleAddress) =
+            scheduler.schedule(address(target), block.timestamp + 1, 200_000, callData);
         assertEq(allowedCode, SUCCESS);
         assertNotEq(scheduleAddress, address(0));
         assertEq(Forklab.warp(1), 1);
+        assertTrue(Forklab.schedule(scheduleAddress).success);
+        assertEq(target.callCount(), 1);
+        assertEq(target.lastSender(), address(proxy));
         Forklab.strictDelegatecallRule(true);
     }
 
-    function testFuzz_scheduleInputsDoNotRevert(uint64 secondsForward, uint256 gasLimit) public {
-        uint256 expiry = block.timestamp + (uint256(secondsForward) % 5_356_802);
-        HSS.scheduleCall(address(target), expiry, gasLimit, 0, bytes(""));
+    function testFuzz_scheduleInputsDoNotRevert(uint256 expiryOffsetSeed, uint256 gasLimitSeed) public {
+        uint256 expiryOffset = expiryOffsetSeed % 5_356_802;
+        uint256 gasLimit = gasLimitSeed % 15_000_002;
+        (int64 code,) = HSS.scheduleCall(address(target), block.timestamp + expiryOffset, gasLimit, 0, bytes(""));
+        assertTrue(code == SUCCESS || code == EXPIRY_NOT_IN_FUTURE || code == EXPIRY_TOO_FAR || code == EXPIRY_BUSY);
     }
 
     event ScheduleCreated(
@@ -196,4 +264,7 @@ contract ForklabHssTest is Test {
         uint64 value,
         bytes callData
     );
+    event ScheduleExecuted(address indexed schedule, bool success, bytes returnData);
+    event ScheduleDeleted(address indexed schedule);
+    event ScheduleExpired(address indexed schedule);
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import { IHederaScheduleService } from "./IHederaScheduleService.sol";
+
 /// @notice Small in-process target used only by the Forklab emulator tests.
 contract ForklabScheduleTarget {
     /// @notice Error used to test captured revert data.
@@ -26,7 +28,7 @@ contract ForklabScheduleTarget {
 
     /// @notice Reverts with a typed error for return-data assertions.
     /// @param marker The error marker.
-    function revertWith(uint256 marker) external pure {
+    function revertWith(uint256 marker) external payable {
         revert TargetReverted(marker);
     }
 
@@ -45,18 +47,53 @@ contract ForklabScheduleTarget {
     }
 }
 
-/// @notice Fixture that reaches the schedule emulator through delegatecall.
-contract ForklabDelegateCaller {
-    /// @notice Calls the emulator code using delegatecall.
-    /// @param callData The encoded schedule call.
-    /// @return result The emulator response bytes.
-    function scheduleThroughDelegate(bytes calldata callData) external returns (bytes memory result) {
-        (bool success, bytes memory response) = address(0x16b).delegatecall(callData);
+/// @notice Implementation called through a proxy before making a normal HSS call.
+contract ForklabDelegateSchedulerImplementation {
+    /// @notice Creates a schedule while executing in the proxy's delegated frame.
+    function schedule(address to, uint256 expiry, uint256 gasLimit, bytes calldata callData)
+        external
+        returns (int64 responseCode, address scheduleAddress)
+    {
+        return IHederaScheduleService(address(0x16b)).scheduleCall(to, expiry, gasLimit, 0, callData);
+    }
+}
+
+/// @notice Minimal proxy fixture for the delegatecall-then-call pattern.
+contract ForklabDelegateSchedulerProxy {
+    address private immutable _IMPLEMENTATION;
+
+    constructor(address implementation) {
+        _IMPLEMENTATION = implementation;
+    }
+
+    fallback() external payable {
+        (bool success, bytes memory response) = _IMPLEMENTATION.delegatecall(msg.data);
         if (!success) {
             assembly {
                 revert(add(response, 0x20), mload(response))
             }
         }
-        return response;
+        assembly {
+            return(add(response, 0x20), mload(response))
+        }
+    }
+}
+
+/// @notice Target that schedules itself until exactly five executions complete.
+contract ForklabRecursiveScheduler {
+    uint256 public callCount;
+
+    function start() external returns (int64 responseCode, address scheduleAddress) {
+        return _scheduleNext();
+    }
+
+    function tick() external {
+        callCount++;
+        if (callCount < 5) _scheduleNext();
+    }
+
+    function _scheduleNext() private returns (int64 responseCode, address scheduleAddress) {
+        return IHederaScheduleService(address(0x16b))
+            .scheduleCall(address(this), block.timestamp + 1, 1_500_000, 0, abi.encodeCall(this.tick, ()));
     }
 }

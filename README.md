@@ -147,9 +147,11 @@ contract ScheduledCallTest is Test {
 - HTS token addresses can expose EIP-7702-style delegation code. `Forklab.useTokens` restores the HIP-719 proxy only for affected tokens.
 - SaucerSwap V1 still uses legacy HTS mint and burn selectors. `ForklabHts` translates those selectors while retaining the supply-key checks.
 - Mirror Node responses are timestamp-bounded to the pinned fork block. Pair reserves and token balances must describe the same snapshot.
-- A schedule reached through delegatecall is rejected by default to match the Hedera payer-signature failure seen on testnet.
+- A marked proxy that schedules from a delegated implementation frame is created normally, then records status `7` at execution without calling its target. Mark it with `Forklab.markDelegateScheduler(proxy, true)` in a test.
 - EVM HBAR values are tinybars (`1 HBAR = 100_000_000`). HSS `value` is also tinybars; JSON-RPC relay values use weibars.
 - A scheduled payer must keep enough HBAR for the call value and configured execution fee.
+- A failed target call refunds its `value` to the payer but retains the configured execution fee.
+- Until the live testnet expiry probe is complete, an unsigned schedule that expires records status `7` as an explicit emulator choice, not a verified network claim.
 
 ## What the emulator does not do
 
@@ -158,6 +160,8 @@ contract ScheduledCallTest is Test {
 - It does not provide fake routers, pools, tokens, or oracle responses.
 - It does not make Mirror Node data available at a precision the service cannot return.
 - It does not prove a deployment; testnet claims belong in `docs/TESTNET_PROOF.md` with resolvable links.
+- It cannot infer an earlier delegatecall from the ordinary call frame received by `0x16b`; proxy scheduling must be opted in with `Forklab.markDelegateScheduler`.
+- It does not protect configuration setters. Any contract on the fork can change emulator limits, fees, delegate markers, and rule settings because Forklab is a test tool.
 
 ## Troubleshooting
 

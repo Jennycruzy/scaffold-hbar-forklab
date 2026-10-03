@@ -26,7 +26,7 @@ contract ForklabHss is IHederaScheduleService {
     int64 public constant SCHEDULE_ALREADY_DELETED = 212;
     /// @notice The schedule has already executed.
     int64 public constant SCHEDULE_ALREADY_EXECUTED = 213;
-    /// @notice The payer did not authorize the operation or delegatecall rule rejected it.
+    /// @notice The payer did not authorize the operation.
     int64 public constant INVALID_SIGNATURE = 7;
     /// @notice The payer could not fund the scheduled operation.
     int64 public constant INSUFFICIENT_PAYER_BALANCE = 10;
@@ -62,6 +62,7 @@ contract ForklabHss is IHederaScheduleService {
         bool signed;
         bool terminal;
         bool deleted;
+        bool rejectPayerAtExecution;
     }
 
     struct Capacity {
@@ -71,6 +72,7 @@ contract ForklabHss is IHederaScheduleService {
 
     mapping(address scheduleAddress => ScheduleState state) private _schedules;
     mapping(uint256 second => Capacity capacity) private _capacity;
+    mapping(address scheduler => bool marked) private _delegateSchedulers;
     address[] private _scheduleOrder;
     uint160 private _nextSchedule;
     uint256 private _maxSchedulesPerSecond = 10;
@@ -213,6 +215,13 @@ contract ForklabHss is IHederaScheduleService {
         _strictDelegatecall = value;
     }
 
+    /// @notice Marks a proxy whose implementation reaches HSS through delegatecall.
+    /// @dev The EVM call into 0x16b is ordinary, so this explicit marker is required;
+    ///      the emulator cannot inspect the caller's preceding call frames.
+    function markDelegateScheduler(address scheduler, bool marked) external {
+        _delegateSchedulers[scheduler] = marked;
+    }
+
     /// @notice Returns whether delegatecall entry is rejected.
     /// @return enabled True when the strict contract-key rule is enabled.
     function strictDelegatecallRule() external view returns (bool enabled) {
@@ -295,6 +304,7 @@ contract ForklabHss is IHederaScheduleService {
         state.creator = msg.sender;
         state.requiresSignature = requiresSignature;
         state.executeOnSignature = executeOnSignature;
+        state.rejectPayerAtExecution = _strictDelegatecall && _delegateSchedulers[msg.sender];
         _scheduleOrder.push(scheduleAddress);
         _capacity[expirySecond].scheduleCount++;
         _capacity[expirySecond].gasUsed += gasLimit;
@@ -335,6 +345,16 @@ contract ForklabHss is IHederaScheduleService {
 
         uint256 executionTime = block.timestamp < state.info.expiry ? state.info.expiry : block.timestamp;
         if (executionTime > block.timestamp) VM.warp(executionTime);
+
+        if (state.rejectPayerAtExecution) {
+            state.info.status = INVALID_SIGNATURE;
+            state.info.success = false;
+            state.info.returnData = bytes("");
+            state.info.executedAt = block.timestamp;
+            state.terminal = true;
+            emit ScheduleExecuted(scheduleAddress, false, bytes(""));
+            return;
+        }
 
         uint256 payerBalance = state.info.payer.balance;
         uint256 required = _scheduleFeeTinybars;
@@ -401,16 +421,7 @@ contract ForklabHss is IHederaScheduleService {
         return SUCCESS;
     }
 
-    function _delegatecallRejected() private view returns (bool) {
-        if (address(this) == HSS_ADDRESS) return false;
-        (bool success, bytes memory result) =
-            HSS_ADDRESS.staticcall(abi.encodeWithSignature("strictDelegatecallRule()"));
-        if (!success || result.length < 32) return true;
-        return abi.decode(result, (bool));
-    }
-
     function _forwardScheduleCall() private returns (int64 responseCode, address scheduleAddress) {
-        if (_delegatecallRejected()) return (INVALID_SIGNATURE, address(0));
         (bool success, bytes memory result) = HSS_ADDRESS.call(msg.data);
         if (!success || result.length < 64) return (INVALID_SIGNATURE, address(0));
         return abi.decode(result, (int64, address));
