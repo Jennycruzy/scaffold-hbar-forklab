@@ -54,6 +54,21 @@ OK: forge 1.5.0, cast, curl, bash, and mainnet eth_chainId.
 
 The current mainnet fork snapshot is block `100579000`. Its Mirror Node block timestamp, printed by the adapter during the fork proof, is `1790821038.006379925`. The testnet snapshot is `41202267`.
 
+### Live schedule-capacity probe
+
+`scripts-js/probeScheduleLimits.js` reads one testnet block and submits every `hasScheduleCapacity` query with that block tag. On 3 October 2026 it selected block `41300691`, timestamp `1791023114`, and returned:
+
+| Expiry delta | 100,000 gas | 1,000,000 gas | 15,000,000 gas |
+| -----------: | :---------: | :-----------: | :------------: |
+|          `0` |    false    |     false     |     false      |
+|          `1` |    false    |     false     |     false      |
+|  `5,356,800` |    true     |     true      |      true      |
+|  `5,356,801` |    true     |     true      |      true      |
+
+The two edge pairs cannot be interpreted as an exact boundary measurement through public Hashio: the HSS capacity query evaluates against advancing consensus time even when `eth_call` carries a historical block tag. Network delay makes `now+1` expire before evaluation and brings both horizon calls back inside the limit. The script records the exact requested calls, but these results do not justify changing Forklab's inclusive `5,356,800`-second emulator boundary. A transaction-level testnet probe with a funded signer is still required to distinguish the horizon by one second.
+
+The current Hiero `SchedulingConfig.java` declares `maxExpirationFutureSeconds = 5356800` at line 25 and `maxExecutionsPerUserTxn = 100` at line 15: https://github.com/hiero-ledger/hiero-consensus-node/blob/main/hedera-node/hedera-config/src/main/java/com/hedera/node/config/data/SchedulingConfig.java#L15-L25. That current file contains no per-second gas setting, so it does not support the earlier claim that 15,000,000 is a scheduling configuration default. The live read probe confirms that an otherwise-empty second accepts an individual 15,000,000-gas request; proving the aggregate per-second ceiling requires creating competing schedules and remains part of the funded testnet work.
+
 Command:
 
 ```text
@@ -68,20 +83,20 @@ Suite result: ok. 5 passed; 0 failed; 0 skipped
 
 ## Hedera and SaucerSwap addresses
 
-| Item | Address or value | Verification |
-| --- | --- | --- |
-| HTS system contract | `0x0000000000000000000000000000000000000167` | hedera-forking v0.1.2 source and fork setup |
-| HSS emulator address | `0x000000000000000000000000000000000000016b` | HIP-1215 emulator setup |
-| Mainnet SaucerSwap V1 router | `0x00000000000000000000000000000000002e7a5d` | `cast call` and fork tests |
-| Mainnet WHBAR token | `0x0000000000000000000000000000000000163b5a` | Mirror Node token `0.0.1456986` |
-| Mainnet WHBAR helper | `0x0000000000000000000000000000000000163b59` | Mirror Node account `0.0.1456985` |
-| Mainnet USDC | `0x000000000000000000000000000000000006f89a` | Mirror Node token `0.0.456858` |
-| Mainnet SAUCE | `0x00000000000000000000000000000000000b2ad5` | Mirror Node token `0.0.731861` |
-| Mainnet USDC-WHBAR pair | `0xdb34c1ef944883f0e5a2fc18b6c1978b088bd31d` | `getReserves()` fork proof |
-| Testnet SaucerSwap V1 router | `0x0000000000000000000000000000000000004b40` | factory `0x00000000000000000000000000000000000026e7` |
-| Testnet WHBAR helper/token | `0x0000000000000000000000000000000000003ad1` / `0x0000000000000000000000000000000000003ad2` | helper `token()` proof |
-| Testnet SAUCE | `0x0000000000000000000000000000000000120f46` | token `0.0.1183558`, `symbol()` = `SAUCE` |
-| Testnet WHBAR-SAUCE pair | `0xfe7cc3ceb7b1128bfc3889184e2d5561bf74bfb3` | nonzero reserves at block `41202267` |
+| Item                         | Address or value                                                                            | Verification                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| HTS system contract          | `0x0000000000000000000000000000000000000167`                                                | hedera-forking v0.1.2 source and fork setup          |
+| HSS emulator address         | `0x000000000000000000000000000000000000016b`                                                | HIP-1215 emulator setup                              |
+| Mainnet SaucerSwap V1 router | `0x00000000000000000000000000000000002e7a5d`                                                | `cast call` and fork tests                           |
+| Mainnet WHBAR token          | `0x0000000000000000000000000000000000163b5a`                                                | Mirror Node token `0.0.1456986`                      |
+| Mainnet WHBAR helper         | `0x0000000000000000000000000000000000163b59`                                                | Mirror Node account `0.0.1456985`                    |
+| Mainnet USDC                 | `0x000000000000000000000000000000000006f89a`                                                | Mirror Node token `0.0.456858`                       |
+| Mainnet SAUCE                | `0x00000000000000000000000000000000000b2ad5`                                                | Mirror Node token `0.0.731861`                       |
+| Mainnet USDC-WHBAR pair      | `0xdb34c1ef944883f0e5a2fc18b6c1978b088bd31d`                                                | `getReserves()` fork proof                           |
+| Testnet SaucerSwap V1 router | `0x0000000000000000000000000000000000004b40`                                                | factory `0x00000000000000000000000000000000000026e7` |
+| Testnet WHBAR helper/token   | `0x0000000000000000000000000000000000003ad1` / `0x0000000000000000000000000000000000003ad2` | helper `token()` proof                               |
+| Testnet SAUCE                | `0x0000000000000000000000000000000000120f46`                                                | token `0.0.1183558`, `symbol()` = `SAUCE`            |
+| Testnet WHBAR-SAUCE pair     | `0xfe7cc3ceb7b1128bfc3889184e2d5561bf74bfb3`                                                | nonzero reserves at block `41202267`                 |
 
 Command:
 

@@ -22,6 +22,7 @@
     "test:testnet-fork": "node scripts-js/preflight.js --network testnet --expect-ffi && forge test --fork-url ${HEDERA_TESTNET_RPC_URL:-https://testnet.hashio.io/api} --chain-id 296 --fork-block-number $(node scripts-js/getForkBlock.js testnet) --fork-retries ${FORK_RETRIES:-3} --fork-retry-backoff ${FORK_RETRY_BACKOFF:-1000} --ffi",
     "fork:pin": "node scripts-js/pinForkBlock.js mainnet",
     "fork:pin:testnet": "node scripts-js/pinForkBlock.js testnet",
+    "schedule:probe": "node scripts-js/probeScheduleLimits.js",
     "verify:testnet": "forge verify-contract --chain-id 296 --verifier sourcify",
     "verify:mainnet": "forge verify-contract --chain-id 295 --verifier sourcify",
     "postinstall": "shx cp -n .env.example .env"

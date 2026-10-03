@@ -34,6 +34,8 @@ With the repository checkout, use the equivalent Yarn commands:
 node .yarn/releases/yarn-3.2.3.cjs install
 node .yarn/releases/yarn-3.2.3.cjs foundry:doctor
 node .yarn/releases/yarn-3.2.3.cjs foundry:test
+node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
+node packages/foundry/scripts-js/probeScheduleLimits.js
 node .yarn/releases/yarn-3.2.3.cjs next:dev
 ```
 
@@ -106,19 +108,19 @@ executes due calls with the recorded payer, value, gas limit, and ordering.
 
 ## Environment variables
 
-| Name | Required | Default | Example |
-| --- | --- | --- | --- |
-| `HEDERA_MAINNET_RPC_URL` | No | `https://mainnet.hashio.io/api` | `https://mainnet.hashio.io/api` |
-| `HEDERA_TESTNET_RPC_URL` | No | `https://testnet.hashio.io/api` | `https://testnet.hashio.io/api` |
-| `FORK_RETRIES` | No | `3` | `5` |
-| `FORK_RETRY_BACKOFF` | No | `1000` ms | `2000` |
-| `NEXT_PUBLIC_HEDERA_MAINNET_RPC_URL` | No | Hashio mainnet URL | `https://mainnet.hashio.io/api` |
-| `NEXT_PUBLIC_HEDERA_TESTNET_RPC_URL` | No | Hashio testnet URL | `https://testnet.hashio.io/api` |
-| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | No | empty | `your-project-id` |
-| `HEDERA_MIRROR_MAINNET_URL` | No | `https://mainnet.mirrornode.hedera.com` | same URL |
-| `HEDERA_MIRROR_TESTNET_URL` | No | `https://testnet.mirrornode.hedera.com` | same URL |
-| `FORKLAB_MIRROR_LOG_URLS` | No | `false` | `true` |
-| `LOCALHOST_KEYSTORE_ACCOUNT` | No | `scaffold-hbar-default` | `my-testnet-account` |
+| Name                                    | Required | Default                                 | Example                         |
+| --------------------------------------- | -------- | --------------------------------------- | ------------------------------- |
+| `HEDERA_MAINNET_RPC_URL`                | No       | `https://mainnet.hashio.io/api`         | `https://mainnet.hashio.io/api` |
+| `HEDERA_TESTNET_RPC_URL`                | No       | `https://testnet.hashio.io/api`         | `https://testnet.hashio.io/api` |
+| `FORK_RETRIES`                          | No       | `3`                                     | `5`                             |
+| `FORK_RETRY_BACKOFF`                    | No       | `1000` ms                               | `2000`                          |
+| `NEXT_PUBLIC_HEDERA_MAINNET_RPC_URL`    | No       | Hashio mainnet URL                      | `https://mainnet.hashio.io/api` |
+| `NEXT_PUBLIC_HEDERA_TESTNET_RPC_URL`    | No       | Hashio testnet URL                      | `https://testnet.hashio.io/api` |
+| `NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID` | No       | empty                                   | `your-project-id`               |
+| `HEDERA_MIRROR_MAINNET_URL`             | No       | `https://mainnet.mirrornode.hedera.com` | same URL                        |
+| `HEDERA_MIRROR_TESTNET_URL`             | No       | `https://testnet.mirrornode.hedera.com` | same URL                        |
+| `FORKLAB_MIRROR_LOG_URLS`               | No       | `false`                                 | `true`                          |
+| `LOCALHOST_KEYSTORE_ACCOUNT`            | No       | `scaffold-hbar-default`                 | `my-testnet-account`            |
 
 Do not commit `.env` files, private keys, or keystores.
 
@@ -195,16 +197,16 @@ contract ScheduledCallTest is Test {
 
 ## Troubleshooting
 
-| Symptom | Fix |
-| --- | --- |
-| Forge fork request returns HTTP 400 about a block object | Install Foundry `v1.5.0`, then run `foundry:doctor`. |
-| HTS reads return empty bytes | Put `cast` on `PATH`; the Mirror Node adapter uses it through FFI. |
-| FFI cannot run | Install `bash` and `curl`, enable `ffi` in `foundry.toml`, and pass `--ffi`. |
-| A token call reports an unsupported selector | Call `Forklab.useTokens` for every token used by the test. |
-| A swap reverts with `K` | Use a pinned block and inspect timestamp-bounded Mirror Node responses; never edit pair storage. |
-| A scheduled call fails after delegatecall | Schedule from the concrete contract frame, not a proxy or delegatecall library. |
-| A scheduled call stops without a target event | Check the payer HBAR balance and schedule status. |
-| A recurring buy skips with a stale oracle price | Check Supra pair `432` at the pinned block and increase `maxPriceAge` only when the feed timestamp justifies it. |
+| Symptom                                                  | Fix                                                                                                              |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Forge fork request returns HTTP 400 about a block object | Install Foundry `v1.5.0`, then run `foundry:doctor`.                                                             |
+| HTS reads return empty bytes                             | Put `cast` on `PATH`; the Mirror Node adapter uses it through FFI.                                               |
+| FFI cannot run                                           | Install `bash` and `curl`, enable `ffi` in `foundry.toml`, and pass `--ffi`.                                     |
+| A token call reports an unsupported selector             | Call `Forklab.useTokens` for every token used by the test.                                                       |
+| A swap reverts with `K`                                  | Use a pinned block and inspect timestamp-bounded Mirror Node responses; never edit pair storage.                 |
+| A scheduled call fails after delegatecall                | Schedule from the concrete contract frame, not a proxy or delegatecall library.                                  |
+| A scheduled call stops without a target event            | Check the payer HBAR balance and schedule status.                                                                |
+| A recurring buy skips with a stale oracle price          | Check Supra pair `432` at the pinned block and increase `maxPriceAge` only when the feed timestamp justifies it. |
 
 ## Integrations
 
