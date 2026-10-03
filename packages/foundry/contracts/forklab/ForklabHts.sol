@@ -55,8 +55,10 @@ contract ForklabHts is HtsSystemContractJson {
         if (responseCode != HederaResponseCodes.SUCCESS || tokenInfo.token.tokenKeys.length <= 4) return;
         if (tokenInfo.token.tokenKeys[4].key.contractId == contractId) return;
 
-        // v0.1.2 stores the seven token keys at keccak256(slot 7). Each key
-        // occupies five slots, with the contract ID in the second slot.
+        // hedera-forking v0.1.2 (rev 1de85d3) declares `_tokenInfo` at
+        // contracts/HtsSystemContract.sol:31. Its seven token keys start at
+        // keccak256(slot 7); each key occupies five slots and stores contractId
+        // in the second slot. The mainnet fork guard test must fail if this moves.
         uint256 keySlot = uint256(keccak256(abi.encodePacked(uint256(7)))) + 4 * 5 + 1;
         // forge-lint: disable-next-line(unsafe-typecast)
         VM.store(token, bytes32(keySlot), bytes32(uint256(uint160(contractId))));

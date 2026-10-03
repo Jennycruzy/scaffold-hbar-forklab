@@ -138,6 +138,19 @@ user 20.58
 sys 14.75
 ```
 
+### Protobuf supply-key repair
+
+The real mainnet tokens that require Forklab's contract-key repair are WHBAR (`0.0.1456986`) and SAUCE (`0.0.731861`). Their pinned Mirror Node records contain these values:
+
+```json
+{"token_id":"0.0.1456986","symbol":"WHBAR","supply_key":{"_type":"ProtobufEncoded","key":"0a0418d9f658"}}
+{"token_id":"0.0.731861","symbol":"SAUCE","supply_key":{"_type":"ProtobufEncoded","key":"0a0418fbe241"}}
+```
+
+The protobuf contract IDs decode to `0.0.1456985` (the WHBAR helper, `0x0000000000000000000000000000000000163B59`) and `0.0.1077627` (`0x000000000000000000000000000000000010717b`). The repair targets the layout declared by hedera-forking v0.1.2, revision `1de85d382e44170f974cb6de2ff211fecbc88b37`: `_tokenInfo` is at `contracts/HtsSystemContract.sol:31`. `test_protobufSupplyKeyRepairMatchesPinnedStorageLayout` reads the calculated supply-contract slot for both real tokens and fails if that dependency layout changes.
+
+The legacy HTS wipe selectors were checked against verbose traces of both real SaucerSwap paths on the pinned mainnet fork: `wipeTokenAccount(address,address,int64)` = `0xefef57f9`, its `uint64` variant = `0x1fc4cf6c`, and `wipeTokenAccountNFT(address,address,int64[])` = `0xf7f38e26`. Neither the HBAR→USDC trace nor the USDC→WHBAR→SAUCE trace contained any of those selectors. Both tests passed (2 passed, 0 failed), so Forklab does not implement an unobserved wipe compatibility shim.
+
 ## Selectors and response codes
 
 Command:

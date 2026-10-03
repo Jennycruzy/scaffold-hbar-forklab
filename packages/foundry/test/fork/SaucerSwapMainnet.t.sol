@@ -42,6 +42,8 @@ contract SaucerSwapMainnetTest is Test {
     address private constant WHBAR = 0x0000000000000000000000000000000000163B5a;
     address private constant USDC = 0x000000000000000000000000000000000006f89a;
     address private constant SAUCE = 0x00000000000000000000000000000000000b2aD5;
+    address private constant WHBAR_HELPER = 0x0000000000000000000000000000000000163B59;
+    address private constant SAUCE_SUPPLY_CONTRACT = 0x000000000000000000000000000000000010717B;
     address private constant USDC_WHBAR_PAIR = 0xdB34c1Ef944883f0e5A2fC18B6C1978B088bD31d;
 
     ISaucerSwapRouter private constant ROUTER_CONTRACT = ISaucerSwapRouter(ROUTER);
@@ -66,6 +68,13 @@ contract SaucerSwapMainnetTest is Test {
         uint256 mirrorBalance =
             vm.keyExistsJson(json, ".balances[0].balance") ? vm.parseJsonUint(json, ".balances[0].balance") : 0;
         assertEq(evmBalance, mirrorBalance);
+    }
+
+    /// @notice Fails loudly if the pinned hedera-forking token-key layout moves.
+    function test_protobufSupplyKeyRepairMatchesPinnedStorageLayout() external view {
+        uint256 supplyContractSlot = uint256(keccak256(abi.encodePacked(uint256(7)))) + 4 * 5 + 1;
+        assertEq(address(uint160(uint256(vm.load(WHBAR, bytes32(supplyContractSlot))))), WHBAR_HELPER);
+        assertEq(address(uint160(uint256(vm.load(SAUCE, bytes32(supplyContractSlot))))), SAUCE_SUPPLY_CONTRACT);
     }
 
     /// @notice Confirms the real WHBAR helper path can swap HBAR for USDC.
