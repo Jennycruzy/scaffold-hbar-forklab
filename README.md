@@ -194,7 +194,7 @@ contract ScheduledCallTest is Test {
 - It does not make an unsupported external protocol work.
 - It does not provide fake routers, pools, tokens, or oracle responses.
 - It does not make Mirror Node data available at a precision the service cannot return.
-- It does not prove a deployment; testnet claims belong in `docs/TESTNET_PROOF.md` with resolvable links.
+- The live testnet deployment and its independently checked Mirror Node records are documented in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md). Scheduled-run evidence is added there only after each transaction succeeds.
 - It cannot infer an earlier delegatecall from the ordinary call frame received by `0x16b`; proxy scheduling must be opted in with `Forklab.markDelegateScheduler`.
 - It does not protect configuration setters. Any contract on the fork can change emulator limits, fees, delegate markers, and rule settings because Forklab is a test tool.
 - Anvil mode cannot install per-schedule delete redirect bytecode because that uses Foundry cheatcodes. Use `deleteSchedule(address)` there; schedule-address redirects remain enabled and tested in Forge.
