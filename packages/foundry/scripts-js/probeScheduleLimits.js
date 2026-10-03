@@ -54,6 +54,6 @@ console.log(
       results,
     },
     null,
-    2,
-  ),
+    2
+  )
 );

@@ -81,8 +81,12 @@ const nodeIsSupported = MINIMUM_NODE.every(
   (part, index) =>
     nodeVersion[index] === part ||
     (nodeVersion[index] > part &&
-      nodeVersion.slice(0, index).every((value, prior) => value === MINIMUM_NODE[prior])) ||
-    nodeVersion.slice(0, index).some((value, prior) => value > MINIMUM_NODE[prior])
+      nodeVersion
+        .slice(0, index)
+        .every((value, prior) => value === MINIMUM_NODE[prior])) ||
+    nodeVersion
+      .slice(0, index)
+      .some((value, prior) => value > MINIMUM_NODE[prior])
 );
 if (!nodeIsSupported) {
   failures.push(`node must be >=20.18.3; found ${process.versions.node}.`);
@@ -120,10 +124,14 @@ try {
     );
   }
 } catch {
-  warnings.push("Could not verify Foundry FFI configuration; fork tests require `ffi = true` and `--ffi`.");
+  warnings.push(
+    "Could not verify Foundry FFI configuration; fork tests require `ffi = true` and `--ffi`."
+  );
 }
 if (!expectsFfiFlag) {
-  warnings.push("This check cannot see a later forge command. Ensure fork tests include the `--ffi` flag.");
+  warnings.push(
+    "This check cannot see a later forge command. Ensure fork tests include the `--ffi` flag."
+  );
 }
 if (network && hasCommand("curl")) {
   const rpcFailure = checkRpc(network);
