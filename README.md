@@ -214,7 +214,7 @@ contract ScheduledCallTest is Test {
 
 ## Integrations
 
-The implemented fork examples are SaucerSwap V1 swaps, Supra HBAR/USD push-feed reads, HTS token reads, and the Hedera Schedule Service emulator. Their fork tests read real network state. The required Bonzo Lend integration has not yet been built or tested.
+The implemented fork examples are SaucerSwap V1 swaps, Supra HBAR/USD push-feed reads, HTS token reads, the Hedera Schedule Service emulator, and the owner-controlled Bonzo sweep setting. Their fork tests read real network state. Bonzo's pinned mainnet USDC reserve currently rejects `deposit` with `Error("64")`, so no successful aToken proof or testnet sweep is claimed until that live reserve accepts deposits.
 
 ## Payments-scheduler compatibility
 

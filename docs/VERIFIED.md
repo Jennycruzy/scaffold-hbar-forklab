@@ -397,6 +397,30 @@ Output:
 
 The pinned price is `$0.104597` per HBAR. Reading the push feed is an on-chain view call and requires no oracle API credential.
 
+## Bonzo Lend sweep
+
+The official Bonzo contract table lists these lending pools:
+
+```text
+Mainnet LendingPool: 0x236897c518996163E7b313aD21D1C9fCC7BA1afc
+Testnet LendingPool: 0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2
+Mainnet USDC aToken:  0xB7687538c7f4CAD022d5e97CC778d0b46457c5DB
+```
+
+Source: https://docs.bonzo.finance/hub/developer/bonzo-lend/lend-contracts. `cast code` returned non-empty code for both pool addresses; the mainnet aUSDC contract returned `decimals() = 6`.
+
+`RecurringBuy` includes the owner-controlled `configureBonzo(pool, enabled)` setting and calls `deposit(asset, amount, owner, 0)` after a real SaucerSwap fill when enabled. The pinned mainnet proof reaches the real pool, and the swap and HTS approval succeed, but Bonzo returns `Error(string)` with the exact message `64` before minting aUSDC:
+
+```text
+test_bonzoSweepReportsPinnedFrozenReserve()
+swap output: 103761 USDC base units
+approval: true
+Bonzo LendingPool.deposit(USDC, 103761, owner, 0): revert Error("64")
+aUSDC owner balance delta: 0
+```
+
+The Bonzo data provider reports the USDC reserve as active and frozen at this pinned state. Bonzo's current product documentation also says a deposit requires token association before confirmation. The required successful aUSDC-balance-increase proof cannot be honestly claimed while the live reserve rejects the deposit. The fork test records this exact external blocker and must be rerun as a success proof after Bonzo reopens or provides a supported reserve path.
+
 ## RecurringBuy deployment defaults
 
 `Deploy.s.sol` and `DeployRecurringBuy.s.sol` use the verified network constants below, while allowing explicit `RECURRING_BUY_SUPRA` and `RECURRING_BUY_ROUTER` overrides:

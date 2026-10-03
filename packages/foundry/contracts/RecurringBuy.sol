@@ -14,7 +14,13 @@ interface IERC20RecurringBuy {
 
     function transfer(address recipient, uint256 amount) external returns (bool);
 
+    function approve(address spender, uint256 amount) external returns (bool);
+
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+}
+
+interface IBonzoLendingPoolRecurringBuy {
+    function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
 }
 
 interface ISaucerSwapRouterRecurringBuy {
@@ -88,6 +94,12 @@ contract RecurringBuy {
     /// @notice The currently pending HSS schedule, or zero when none exists.
     address public nextSchedule;
 
+    /// @notice Bonzo Lend pool used when bought tokens are swept for the owner.
+    address public bonzoPool;
+
+    /// @notice Whether successful purchases are deposited into Bonzo for the owner.
+    bool public sweepToBonzo;
+
     /// @notice The next requested run time in consensus seconds.
     uint256 public nextRunAt;
 
@@ -141,6 +153,12 @@ contract RecurringBuy {
 
     /// @notice Emitted when the owner stops the vault.
     event Stopped(int64 responseCode);
+
+    /// @notice Emitted when the Bonzo sweep setting changes.
+    event BonzoSweepConfigured(address indexed pool, bool enabled);
+
+    /// @notice Emitted after a purchase is deposited into Bonzo for the owner.
+    event SweptToBonzo(address indexed asset, address indexed onBehalfOf, uint256 amount);
 
     /// @notice Emitted when the factory or current owner changes control.
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
@@ -200,6 +218,16 @@ contract RecurringBuy {
         maxPriceAge = priceAgeSeconds;
     }
 
+    /// @notice Enables or disables depositing bought tokens into Bonzo Lend.
+    /// @param pool The Bonzo LendingPool address for the current network.
+    /// @param enabled Whether future purchases should be deposited for the owner.
+    function configureBonzo(address pool, bool enabled) external onlyOwner {
+        if (enabled && pool == address(0)) revert InvalidConfiguration();
+        bonzoPool = pool;
+        sweepToBonzo = enabled;
+        emit BonzoSweepConfigured(pool, enabled);
+    }
+
     /// @notice Associates the vault, checks owner receipt, and creates the first schedule.
     /// @return responseCode The HSS response code.
     /// @return scheduleAddress The new schedule address on success.
@@ -252,7 +280,13 @@ contract RecurringBuy {
             amountOutMin, path, address(this), block.timestamp + SWAP_DEADLINE_SECONDS
         );
         uint256 amountBought = IERC20RecurringBuy(tokenOut).balanceOf(address(this)) - balanceBefore;
-        if (!IERC20RecurringBuy(tokenOut).transfer(owner, amountBought)) revert OwnerTokenAssociationRequired();
+        if (sweepToBonzo) {
+            if (!IERC20RecurringBuy(tokenOut).approve(bonzoPool, amountBought)) revert OwnerTokenAssociationRequired();
+            IBonzoLendingPoolRecurringBuy(bonzoPool).deposit(tokenOut, amountBought, owner, 0);
+            emit SweptToBonzo(tokenOut, owner, amountBought);
+        } else if (!IERC20RecurringBuy(tokenOut).transfer(owner, amountBought)) {
+            revert OwnerTokenAssociationRequired();
+        }
         emit Bought(amountPerBuy, amountBought, oracleAmountOut, poolAmountOut);
         _scheduleNext();
     }

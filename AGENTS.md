@@ -4,7 +4,7 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 
 ## Rules
 
-- Do not fake external systems. Implemented SaucerSwap, Supra, HTS, Mirror Node, and HSS tests use real fork or network state. Bonzo is required but is not implemented yet.
+- Do not fake external systems. Implemented SaucerSwap, Supra, HTS, Mirror Node, HSS, and Bonzo sweep tests use real fork or network state. Bonzo's pinned USDC reserve currently returns `Error("64")`; keep that exact blocker in the proof until a successful live deposit is available.
 - Call `Forklab.setUp()` before using HTS or HSS in a fork test.
 - Pin the fork block. Record the block, chain id, RPC command, and result in `docs/VERIFIED.md`.
 - Use named tinybar constants. One HBAR is `100_000_000` EVM units.
