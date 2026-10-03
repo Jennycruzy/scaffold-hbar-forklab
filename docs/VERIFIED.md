@@ -63,7 +63,7 @@ forge test --fork-url https://mainnet.hashio.io/api --chain-id 295 --fork-block-
 Output summary:
 
 ```text
-Suite result: ok. 4 passed; 0 failed; 0 skipped
+Suite result: ok. 5 passed; 0 failed; 0 skipped
 ```
 
 ## Hedera and SaucerSwap addresses
@@ -78,6 +78,10 @@ Suite result: ok. 4 passed; 0 failed; 0 skipped
 | Mainnet USDC | `0x000000000000000000000000000000000006f89a` | Mirror Node token `0.0.456858` |
 | Mainnet SAUCE | `0x00000000000000000000000000000000000b2ad5` | Mirror Node token `0.0.731861` |
 | Mainnet USDC-WHBAR pair | `0xdb34c1ef944883f0e5a2fc18b6c1978b088bd31d` | `getReserves()` fork proof |
+| Testnet SaucerSwap V1 router | `0x0000000000000000000000000000000000004b40` | factory `0x00000000000000000000000000000000000026e7` |
+| Testnet WHBAR helper/token | `0x0000000000000000000000000000000000003ad1` / `0x0000000000000000000000000000000000003ad2` | helper `token()` proof |
+| Testnet SAUCE | `0x0000000000000000000000000000000000120f46` | token `0.0.1183558`, `symbol()` = `SAUCE` |
+| Testnet WHBAR-SAUCE pair | `0xfe7cc3ceb7b1128bfc3889184e2d5561bf74bfb3` | nonzero reserves at block `41202267` |
 
 Command:
 
@@ -105,6 +109,15 @@ $ cast call --rpc-url https://testnet.hashio.io/api 0x00000000000000000000000000
 ```
 
 The router proof uses the real factory, pair reserves, WHBAR helper, USDC token, and SAUCE token. Test-account funding uses `vm.deal` only before the swap; no pool, oracle, or reserve storage is edited.
+
+At pinned testnet block `41202267`, the WHBAR-SAUCE pair reserves were `(7668163817922, 4220285345731)` and the router quote for one HBAR was `[100000000, 54870629]`. The testnet-fork suite executes that fill and checks the exact quote. Its RecurringBuy test then executes a scheduled run against the same real pool and Supra feed; because SAUCE is not USD-denominated, the vault correctly emits `SkippedDeviation` and reschedules instead of pretending this is a stablecoin fill.
+
+```text
+Ran 2 tests for test/fork/SaucerSwapTestnet.t.sol:SaucerSwapTestnetTest
+[PASS] test_testnetHbarToSauceMatchesRouterQuote()
+[PASS] test_testnetRecurringBuyRunsAndReschedules()
+Suite result: ok. 2 passed; 0 failed; 0 skipped
+```
 
 ### Mirror Node snapshot root cause
 
