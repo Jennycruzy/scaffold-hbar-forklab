@@ -1,8 +1,8 @@
 # Forklab
 
-Test against real Hedera locally, including the Hedera Schedule Service. Forklab is a Scaffold-HBAR template for Foundry tests that keep HTS token state, SaucerSwap, Supra, Bonzo, the Mirror Node, and scheduled contract calls in the same workflow.
+Test against real Hedera locally, including the Hedera Schedule Service. Forklab is a Scaffold-HBAR template for Foundry tests that keep HTS token state, SaucerSwap, Supra, the Mirror Node, and scheduled contract calls in the same workflow.
 
-The local emulator is a test aid, not a replacement for testnet. Fork tests read real Hedera state at a pinned block; testnet proofs are recorded with transaction IDs and Mirror Node links.
+The local emulator is a test aid, not a replacement for testnet. Fork tests read real Hedera state at a pinned block. A live testnet deployment and its transaction evidence have not yet been completed.
 
 ## Prerequisites
 
@@ -170,12 +170,12 @@ contract ScheduledCallTest is Test {
 
 ## Integrations
 
-The load-bearing fork examples are SaucerSwap V1 swaps, Supra HBAR/USD push-feed reads, Bonzo Lend deposits, HTS token reads, and the Hedera Schedule Service emulator. Each external integration is kept in a test that reads real network state.
+The implemented fork examples are SaucerSwap V1 swaps, Supra HBAR/USD push-feed reads, HTS token reads, and the Hedera Schedule Service emulator. Their fork tests read real network state. The required Bonzo Lend integration has not yet been built or tested.
 
 ## Evidence and credits
 
 - Verified commands and network values: [`docs/VERIFIED.md`](docs/VERIFIED.md)
-- Testnet transaction evidence: [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md)
+- Testnet transaction evidence will be linked here after the live deployment and proof run are complete.
 - Agent extension rules: [`AGENTS.md`](AGENTS.md)
 - Scaffold-HBAR and Hedera tooling: [Scaffold HBAR](https://github.com/hedera-dev/scaffold-hbar)
 - Forking library: [hedera-forking](https://github.com/hashgraph/hedera-forking)
