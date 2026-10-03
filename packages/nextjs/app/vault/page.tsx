@@ -13,6 +13,7 @@ import { hbarToTinybar, hbarToWeibar, tinybarToHbar } from "~~/utils/forklab/uni
 const DEFAULT_SUPRA = "0x6Cd59830AAD978446e6cc7f6cc173aF7656Fb917" as Address;
 const DEFAULT_ROUTER = "0x0000000000000000000000000000000000004b40" as Address;
 const DEFAULT_TOKEN = "0x0000000000000000000000000000000000120f46" as Address;
+const DEFAULT_BONZO_POOL = "0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2" as Address;
 const TESTNET_CHAIN_ID = hederaTestnet.id;
 
 function envAddress(name: string): Address | undefined {
@@ -53,6 +54,10 @@ const Vault: NextPage = () => {
   const [interval, setInterval] = useState("3600");
   const [deviation, setDeviation] = useState("500");
   const [priceAge, setPriceAge] = useState("7200");
+  const [bonzoPool, setBonzoPool] = useState(
+    String(envAddress("NEXT_PUBLIC_BONZO_TESTNET_POOL") ?? DEFAULT_BONZO_POOL),
+  );
+  const [sweepToBonzo, setSweepToBonzo] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastHash, setLastHash] = useState<Hash | null>(null);
 
@@ -155,6 +160,24 @@ const Vault: NextPage = () => {
         args: [tokenOut as Address, hbarToTinybar(amountHbar), BigInt(interval), BigInt(deviation), BigInt(priceAge)],
       });
       await waitForReceipt(hash);
+      if (sweepToBonzo) {
+        if (!isAddress(bonzoPool)) throw new Error("Bonzo pool must be a valid EVM address.");
+        const bonzoHash = await writeContractAsync({
+          address: vaultAddress,
+          abi: recurringBuyAbi,
+          functionName: "configureBonzo",
+          args: [bonzoPool as Address, true],
+        });
+        await waitForReceipt(bonzoHash);
+      } else {
+        const bonzoHash = await writeContractAsync({
+          address: vaultAddress,
+          abi: recurringBuyAbi,
+          functionName: "configureBonzo",
+          args: [zeroAddress, false],
+        });
+        await waitForReceipt(bonzoHash);
+      }
       setMessage("Vault configured.");
       await refreshVault();
     } catch (error) {
@@ -347,6 +370,33 @@ const Vault: NextPage = () => {
         <button className="btn btn-primary mt-5" disabled={isPending || !vaultAddress} onClick={configureVault}>
           Configure vault
         </button>
+        <div className="mt-5 rounded-xl border border-base-300 bg-base-200 p-4">
+          <label className="label cursor-pointer justify-start gap-3 p-0">
+            <input
+              type="checkbox"
+              className="toggle toggle-primary"
+              checked={sweepToBonzo}
+              onChange={event => setSweepToBonzo(event.target.checked)}
+            />
+            <span className="label-text font-medium">Sweep bought tokens into Bonzo Lend for the owner</span>
+          </label>
+          {sweepToBonzo && (
+            <>
+              <label className="form-control mt-4">
+                <span className="label-text mb-1 text-sm font-medium">Bonzo LendingPool</span>
+                <input
+                  className="input input-bordered font-mono text-xs"
+                  value={bonzoPool}
+                  onChange={event => setBonzoPool(event.target.value)}
+                />
+              </label>
+              <p className="mt-3 text-xs text-warning">
+                The pinned Bonzo USDC reserve currently rejects deposits with error code 64. Leave this off unless you
+                have verified an open reserve on the selected network.
+              </p>
+            </>
+          )}
+        </div>
       </section>
 
       <section className="mb-6 grid gap-6 lg:grid-cols-[1fr_0.9fr]">

@@ -23,6 +23,17 @@ export const recurringBuyAbi = [
     ],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "configureBonzo",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "pool", type: "address" },
+      { name: "enabled", type: "bool" },
+    ],
+    outputs: [],
+  },
+  { type: "function", name: "bonzoPool", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
   { type: "function", name: "execute", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "hbarBalance", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -42,6 +53,7 @@ export const recurringBuyAbi = [
     outputs: [{ type: "int64" }, { type: "address" }],
   },
   { type: "function", name: "stop", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "int64" }] },
+  { type: "function", name: "sweepToBonzo", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   {
     type: "function",
     name: "transferOwnership",
