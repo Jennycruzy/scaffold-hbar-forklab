@@ -11,6 +11,57 @@ $ node scripts/validate-template.mjs
 template.json: valid TemplateManifestSchema
 ```
 
+## Fresh-copy acceptance run
+
+On 3 October 2026, commit `41c9ee2` was exported with `git archive HEAD` into a temporary directory. Its `packages/foundry/lib` directory was rebuilt from the URLs in `.gitmodules` at the revisions in `foundry.lock`, matching the template installer's library-resolution inputs. The temporary copy then produced:
+
+```text
+$ yarn install --immutable
+➤ YN0000: Completed in 2m 42s
+➤ YN0000: Done with warnings in 2m 48s
+
+$ yarn lint
+✔ No ESLint warnings or errors
+All matched files use Prettier code style!
+
+$ yarn next:check-types
+# exit 0, no output
+
+$ yarn next:build
+✓ Generating static pages (14/14)
+✓ Finalizing page optimization
+
+$ yarn foundry:compile
+Compiling 56 files with Solc 0.8.33
+Compiler run successful!
+
+$ yarn foundry:test
+Ran 6 test suites: 15 tests passed, 0 failed, 3 skipped (18 total tests)
+
+$ yarn foundry:test:fork
+Ran 6 test suites in 138.36s: 28 tests passed, 0 failed, 1 skipped (29 total tests)
+
+$ yarn foundry:test:testnet-fork
+Ran 6 test suites in 157.96s: 17 tests passed, 0 failed, 2 skipped (19 total tests)
+
+$ yarn manifest:validate
+template.json: valid TemplateManifestSchema
+```
+
+A separate archive was used for the other declared package manager:
+
+```text
+$ npm install
+added 1330 packages, and audited 1333 packages in 7m
+51 vulnerabilities (27 moderate, 21 high, 3 critical)
+```
+
+Installation succeeded. The reported findings are in the resolved dependency tree and were not rewritten with `npm audit fix --force`, which could make incompatible dependency changes. Yarn also reported peer-dependency warnings. The repository requires Node `>=20.18.3`; this run used Node `20.20.2`. One transitive npm package (`ansi-styles@7.0.0`) warned that it prefers Node 22 or newer, but did not prevent installation or any Yarn build/check above.
+
+The production build was started without a wallet or network configuration. `/`, `/vault`, `/lab`, `/debug`, `/blockexplorer`, `/api/hedera/account`, `/api/lab/fast-forward`, `/api/lab/run-due`, and `/api/recurring-buy/status` each returned HTTP 200. The status APIs returned explicit offline/unconfigured JSON instead of throwing.
+
+Tracked secret-name checks found no `.env`, keystore, or `.pem` file. Hex-string review found only the documented Supra feed identifier, a documented bytecode excerpt, and bytecode fixtures under `research/fork-repros/`; none is a private key. The banned-word check is empty across authored files and commit messages. The checked-in Yarn 3.2.3 release is generated third-party code and is excluded from the authored-file text check.
+
 ## Toolchain and networks
 
 Command:
