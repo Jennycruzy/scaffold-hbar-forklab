@@ -151,6 +151,8 @@ contract ScheduledCallTest is Test {
 - EVM HBAR values are tinybars (`1 HBAR = 100_000_000`). HSS `value` is also tinybars; JSON-RPC relay values use weibars.
 - A scheduled payer must keep enough HBAR for the call value and configured execution fee.
 - A failed target call refunds its `value` to the payer but retains the configured execution fee.
+- `maxDeviationBps` is currently used for both pool/oracle deviation and swap slippage; configure it for the stricter of those two limits.
+- `withdraw` is disabled while a vault is running so the owner cannot starve already-planned purchases.
 - Until the live testnet expiry probe is complete, an unsigned schedule that expires records status `7` as an explicit emulator choice, not a verified network claim.
 
 ## What the emulator does not do

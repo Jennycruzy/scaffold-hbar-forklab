@@ -50,6 +50,12 @@ library Forklab {
         }
     }
 
+    /// @notice Associates a fork-local contract that has no Mirror Node account record.
+    /// @dev This is test setup only; production contracts should call the standard HTS ABI.
+    function associateLocalAccount(address token, address account) internal returns (bool handled) {
+        return ForklabHts(HTS_ADDRESS).associateLocalAccount(token, account);
+    }
+
     /// @notice Advances time and executes all schedules that become eligible.
     /// @param secondsForward The number of seconds to advance.
     /// @return executed The number of terminal schedules processed.

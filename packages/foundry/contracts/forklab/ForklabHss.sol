@@ -369,17 +369,12 @@ contract ForklabHss is IHederaScheduleService {
         }
 
         uint256 hssBalance = address(this).balance;
-        VM.deal(state.info.payer, payerBalance - required);
-        VM.deal(address(this), hssBalance + required);
+        VM.deal(state.info.payer, payerBalance - _scheduleFeeTinybars);
+        VM.deal(address(this), hssBalance + _scheduleFeeTinybars);
 
         VM.prank(state.info.payer);
         (bool success, bytes memory returnData) =
             state.info.to.call{ gas: state.info.gasLimit, value: state.info.value }(state.info.data);
-
-        if (!success && state.info.value > 0) {
-            VM.deal(state.info.payer, state.info.payer.balance + state.info.value);
-            VM.deal(address(this), address(this).balance - state.info.value);
-        }
 
         state.info.success = success;
         state.info.returnData = returnData;

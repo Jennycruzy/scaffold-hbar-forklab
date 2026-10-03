@@ -47,6 +47,7 @@ contract RecurringBuy {
     uint256 internal constant EXECUTION_GAS = 1_500_000;
     uint256 internal constant MAX_SCHEDULE_ATTEMPTS = 3;
     uint256 internal constant TINYBARS_PER_HBAR = 100_000_000;
+    uint256 internal constant SWAP_DEADLINE_SECONDS = 5 minutes;
 
     /// @notice Supra's HBAR/USD data-pair index.
     uint256 public constant HBAR_USD_PAIR_INDEX = 432;
@@ -234,7 +235,7 @@ contract RecurringBuy {
         uint256 amountOutMin = (oracleAmountOut * (BPS - maxDeviationBps)) / BPS;
         uint256 balanceBefore = IERC20RecurringBuy(tokenOut).balanceOf(address(this));
         router.swapExactETHForTokens{ value: amountPerBuy }(
-            amountOutMin, path, address(this), block.timestamp + interval
+            amountOutMin, path, address(this), block.timestamp + SWAP_DEADLINE_SECONDS
         );
         uint256 amountBought = IERC20RecurringBuy(tokenOut).balanceOf(address(this)) - balanceBefore;
         if (!IERC20RecurringBuy(tokenOut).transfer(owner, amountBought)) revert OwnerTokenAssociationRequired();
@@ -262,6 +263,7 @@ contract RecurringBuy {
     /// @notice Withdraws tinybars from the vault to the owner.
     /// @param amountTinybars The amount to withdraw.
     function withdraw(uint256 amountTinybars) external onlyOwner {
+        if (running) revert InvalidConfiguration();
         (bool success,) = payable(owner).call{ value: amountTinybars }("");
         if (!success) revert HbarTransferFailed();
     }
@@ -290,11 +292,6 @@ contract RecurringBuy {
     function _associateVault() private {
         (bool success, bytes memory result) = tokenOut.call(abi.encodeWithSelector(IHRC719.isAssociated.selector));
         if (success && result.length >= 32 && abi.decode(result, (bool))) return;
-
-        (bool localSuccess, bytes memory localResult) = HTS_ADDRESS.call(
-            abi.encodeWithSignature("associateLocalAccount(address,address)", tokenOut, address(this))
-        );
-        if (localSuccess && localResult.length >= 32 && abi.decode(localResult, (bool))) return;
 
         int64 responseCode = IHederaTokenService(HTS_ADDRESS).associateToken(address(this), tokenOut);
         if (responseCode != SUCCESS_RESPONSE && responseCode != TOKEN_ALREADY_ASSOCIATED) {

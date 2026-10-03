@@ -114,6 +114,8 @@ contract ForklabHts is HtsSystemContractJson {
     function associateLocalAccount(address token, address account) external htsCall returns (bool handled) {
         (uint32 accountId, bool exists) = this.getAccountId(account);
         if (exists) return false;
+        bytes32 accountSlot = bytes32(abi.encodePacked(this.getAccountId.selector, uint64(0), account));
+        VM.store(HTS_ADDRESS, accountSlot, bytes32((uint256(1) << 248) | uint256(accountId)));
         bytes32 slot = bytes32(abi.encodePacked(IHRC719.isAssociated.selector, uint192(0), accountId));
         VM.store(token, slot, bytes32(uint256(1)));
         return true;

@@ -10,6 +10,7 @@ import { IERC20RecurringBuy, ISaucerSwapRouterRecurringBuy, RecurringBuy } from 
 contract RecurringBuyMainnetTest is Test {
     uint256 private constant TINYBARS_PER_HBAR = 100_000_000;
     uint256 private constant HBAR_USD_PAIR_INDEX = 432;
+    int64 private constant INSUFFICIENT_PAYER_BALANCE = 10;
 
     address private constant SUPRA = 0xD02cc7a670047b6b012556A88e275c685d25e0c9;
     address private constant ROUTER = 0x00000000000000000000000000000000002E7A5D;
@@ -47,29 +48,32 @@ contract RecurringBuyMainnetTest is Test {
         (, address firstSchedule) = vault.start();
 
         uint256 firstBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        uint256 firstQuote = _quoteOneHbar();
         assertEq(Forklab.warp(60), 1);
         assertTrue(Forklab.schedule(firstSchedule).success);
         uint256 secondBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
-        assertGt(secondBalance, firstBalance);
+        assertEq(secondBalance - firstBalance, firstQuote);
 
         address secondSchedule = vault.nextSchedule();
+        uint256 secondQuote = _quoteOneHbar();
         assertEq(Forklab.warp(60), 1);
         assertTrue(Forklab.schedule(secondSchedule).success);
         uint256 thirdBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
-        assertGt(thirdBalance, secondBalance);
+        assertEq(thirdBalance - secondBalance, secondQuote);
 
         address thirdSchedule = vault.nextSchedule();
+        uint256 thirdQuote = _quoteOneHbar();
         assertEq(Forklab.warp(60), 1);
         assertTrue(Forklab.schedule(thirdSchedule).success);
         uint256 fourthBalance = IERC20RecurringBuy(USDC).balanceOf(OWNER);
-        assertGt(fourthBalance, thirdBalance);
+        assertEq(fourthBalance - thirdBalance, thirdQuote);
         assertTrue(vault.running());
         assertNotEq(vault.nextSchedule(), address(0));
     }
 
     /// @notice A real large swap moves the pool quote outside the Supra tolerance.
     function test_largeRealSwapCausesDeviationSkip() external {
-        RecurringBuy vault = _newVault(60, 500, 3_600);
+        RecurringBuy vault = _newVault(60, 500, 7_200);
         vm.deal(address(vault), TINYBARS_PER_HBAR);
         vm.prank(OWNER);
         vault.start();
@@ -85,6 +89,8 @@ contract RecurringBuyMainnetTest is Test {
         ROUTER_CONTRACT.swapExactETHForTokens{ value: input }(quote[1], path, trader, block.timestamp + 600);
 
         uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        vm.expectEmit(false, false, false, false, address(vault));
+        emit SkippedDeviation(0, 0, 0);
         assertEq(Forklab.warp(60), 1);
         assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerBefore);
         assertTrue(vault.running());
@@ -98,6 +104,8 @@ contract RecurringBuyMainnetTest is Test {
         vault.start();
         uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
 
+        vm.expectEmit(false, false, false, false, address(vault));
+        emit SkippedStalePrice(0, 0);
         assertEq(Forklab.warp(2), 1);
         assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerBefore);
         assertTrue(vault.running());
@@ -112,6 +120,26 @@ contract RecurringBuyMainnetTest is Test {
         assertEq(Forklab.warp(60), 1);
         assertEq(Forklab.schedule(scheduleAddress).status, int64(10));
         assertFalse(Forklab.schedule(scheduleAddress).success);
+    }
+
+    /// @notice A funded vault can buy twice and then records payer exhaustion.
+    function test_vaultRunsTwoBuysThenRunsOutOfHbar() external {
+        RecurringBuy vault = _newVault(60, 500, 7_200);
+        Forklab.setScheduleFeeTinybars(2);
+        vm.deal(address(vault), 2 * TINYBARS_PER_HBAR + 5);
+        vm.prank(OWNER);
+        vault.start();
+
+        assertEq(Forklab.warp(60), 1);
+        assertEq(address(vault).balance, TINYBARS_PER_HBAR + 3);
+        assertEq(Forklab.warp(60), 1);
+        assertEq(address(vault).balance, 1);
+        address failingSchedule = vault.nextSchedule();
+        vm.expectEmit(true, false, false, false, address(0x16b));
+        emit ScheduleExecuted(failingSchedule, false, bytes(""));
+        assertEq(Forklab.warp(60), 1);
+        assertEq(Forklab.schedule(failingSchedule).status, INSUFFICIENT_PAYER_BALANCE);
+        assertFalse(Forklab.schedule(failingSchedule).success);
     }
 
     /// @notice Stopping a vault deletes its pending schedule.
@@ -142,5 +170,18 @@ contract RecurringBuyMainnetTest is Test {
         vault = new RecurringBuy(SUPRA, ROUTER);
         vm.prank(OWNER);
         vault.configure(USDC, TINYBARS_PER_HBAR, intervalSeconds, deviationBps, priceAgeSeconds);
+        assertTrue(Forklab.associateLocalAccount(USDC, address(vault)));
     }
+
+    function _quoteOneHbar() private view returns (uint256 amountOut) {
+        address[] memory path = new address[](2);
+        path[0] = WHBAR;
+        path[1] = USDC;
+        uint256[] memory quote = ROUTER_CONTRACT.getAmountsOut(TINYBARS_PER_HBAR, path);
+        return quote[1];
+    }
+
+    event SkippedDeviation(uint256 oracleAmountOut, uint256 poolAmountOut, uint256 deviationBps);
+    event SkippedStalePrice(uint256 publishTime, uint256 currentTime);
+    event ScheduleExecuted(address indexed schedule, bool success, bytes returnData);
 }
