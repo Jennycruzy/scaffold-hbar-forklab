@@ -6769,6 +6769,7 @@ __metadata:
   dependencies:
     husky: ^9.1.6
     lint-staged: ^15.2.10
+    zod: 3.24.4
   languageName: unknown
   linkType: soft
 
@@ -11736,6 +11737,13 @@ __metadata:
   version: 3.22.4
   resolution: "zod@npm:3.22.4"
   checksum: 80bfd7f8039b24fddeb0718a2ec7c02aa9856e4838d6aa4864335a047b6b37a3273b191ef335bf0b2002e5c514ef261ffcda5a589fb084a48c336ffc4cdbab7f
+  languageName: node
+  linkType: hard
+
+"zod@npm:3.24.4":
+  version: 3.24.4
+  resolution: "zod@npm:3.24.4"
+  checksum: 62829789765a9187bd72bed3972a7c1a39fdfe6c59bc752eedabec5f99af701658471b8577d22e0fee2081e6e35d4efc93c02c90e13350755a36feadbf72bbbc
   languageName: node
   linkType: hard
 

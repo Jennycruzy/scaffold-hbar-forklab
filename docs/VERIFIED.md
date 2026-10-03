@@ -2,6 +2,15 @@
 
 This file records commands run against the pinned toolchain and live Hedera services. Values below are observations, not placeholders.
 
+## Template manifest
+
+The repository validator mirrors `TemplateManifestSchema` from create-scaffold-hbar `src/types.ts` and parses the checked-in manifest with Zod:
+
+```text
+$ node scripts/validate-template.mjs
+template.json: valid TemplateManifestSchema
+```
+
 ## Toolchain and networks
 
 Command:
