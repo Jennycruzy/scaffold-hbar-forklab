@@ -31,10 +31,6 @@ function shortAddress(address?: string) {
   return address ? `${address.slice(0, 8)}…${address.slice(-6)}` : "—";
 }
 
-function hashscan(hash: Hash) {
-  return `https://hashscan.io/testnet/transaction/${hash}`;
-}
-
 const Vault: NextPage = () => {
   const { address: accountAddress } = useAccount();
   const chainId = useChainId();
@@ -60,6 +56,7 @@ const Vault: NextPage = () => {
   const [sweepToBonzo, setSweepToBonzo] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [lastHash, setLastHash] = useState<Hash | null>(null);
+  const [lastHashscan, setLastHashscan] = useState<string | null>(null);
 
   const readEnabled = Boolean(vaultAddress);
   const { data: running, refetch: refetchRunning } = useReadContract({
@@ -119,6 +116,15 @@ const Vault: NextPage = () => {
   const waitForReceipt = async (hash: Hash) => {
     setLastHash(hash);
     if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
+    try {
+      const response = await fetch(`/api/hedera/transaction?hash=${encodeURIComponent(hash)}`, { cache: "no-store" });
+      if (response.ok) {
+        const data = (await response.json()) as { hashscan?: string | null };
+        setLastHashscan(data.hashscan ?? null);
+      }
+    } catch {
+      setLastHashscan(null);
+    }
   };
 
   const createVault = async () => {
@@ -472,16 +478,13 @@ const Vault: NextPage = () => {
               <dd className="m-0 font-mono">{lastScheduleStatus === undefined ? "—" : String(lastScheduleStatus)}</dd>
             </div>
           </dl>
-          {lastHash && (
-            <a
-              className="link link-primary mt-6 block text-sm"
-              href={hashscan(lastHash)}
-              target="_blank"
-              rel="noreferrer"
-            >
+          {lastHashscan ? (
+            <a className="link link-primary mt-6 block text-sm" href={lastHashscan} target="_blank" rel="noreferrer">
               View latest transaction on Hashscan
             </a>
-          )}
+          ) : lastHash ? (
+            <p className="mt-6 break-all text-xs text-base-content/60">Latest EVM transaction: {lastHash}</p>
+          ) : null}
         </div>
       </section>
 

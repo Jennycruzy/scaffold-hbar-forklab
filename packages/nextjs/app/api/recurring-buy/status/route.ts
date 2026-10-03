@@ -7,8 +7,8 @@ const base = process.env.HEDERA_MIRROR_TESTNET_URL ?? "https://testnet.mirrornod
 const rpc = process.env.HEDERA_TESTNET_RPC_URL ?? "https://testnet.hashio.io/api";
 const configuredAddress = process.env.RECURRING_BUY_ADDRESS ?? process.env.NEXT_PUBLIC_RECURRING_BUY_ADDRESS;
 
-function hashscan(hash: string) {
-  return `https://hashscan.io/testnet/transaction/${hash}`;
+function hashscan(consensusTimestamp: string) {
+  return `https://hashscan.io/testnet/transaction/${consensusTimestamp}`;
 }
 
 export async function GET() {
@@ -37,12 +37,18 @@ export async function GET() {
     });
     const mirrorData = mirror.ok ? await mirror.json() : { results: [] };
     const runs = Array.isArray(mirrorData.results)
-      ? mirrorData.results.map((result: { hash?: string; consensus_timestamp?: string; result?: string }) => ({
-          hash: result.hash ?? null,
-          consensusTimestamp: result.consensus_timestamp ?? null,
-          result: result.result ?? null,
-          hashscan: result.hash ? hashscan(result.hash) : null,
-        }))
+      ? mirrorData.results.map(
+          (result: { hash?: string; timestamp?: string; consensus_timestamp?: string; result?: string }) => ({
+            hash: result.hash ?? null,
+            consensusTimestamp: result.timestamp ?? result.consensus_timestamp ?? null,
+            result: result.result ?? null,
+            hashscan: result.timestamp
+              ? hashscan(result.timestamp)
+              : result.consensus_timestamp
+                ? hashscan(result.consensus_timestamp)
+                : null,
+          }),
+        )
       : [];
 
     return NextResponse.json({
