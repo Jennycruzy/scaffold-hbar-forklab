@@ -26,6 +26,10 @@
               "command": "{run:foundry:test}"
             },
             {
+              "label": "Read the two-minute orientation while the first fork warms up",
+              "url": "https://github.com/Jennycruzy/scaffold-hbar-forklab#two-minute-orientation"
+            },
+            {
               "label": "Run the mainnet fork tests",
               "command": "{run:foundry:test:fork}"
             },

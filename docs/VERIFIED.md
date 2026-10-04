@@ -37,7 +37,64 @@ case intentionally records a deviation skip because SAUCE is not USD-denominated
 purchase or live testnet schedule execution.
 ```
 
-The latest-HEAD fresh-template installer run and latest full network-fork reruns remain separate acceptance work; the earlier fresh-copy results below are retained with their original commit instead of being relabeled.
+The full clean-copy acceptance run at commit `6951e2c` rebuilt all four Foundry libraries from the lockfile tags
+with Foundry 1.5.0's `forge install --no-git` syntax. The first attempt used the removed `--no-commit` flag and
+stopped with `error: unexpected argument '--no-commit' found`; no project check ran in that failed attempt.
+
+The corrected clean archive returned:
+
+```text
+$ yarn install --immutable
+Completed link step in 2m 17s
+Done with peer-dependency warnings in 2m 26s
+
+$ yarn lint
+✔ No ESLint warnings or errors
+All matched files use Prettier code style!
+
+$ yarn next:check-types
+exit 0
+
+$ yarn next:build
+✓ Compiled successfully in 3.4min
+✓ Generating static pages (15/15)
+
+$ yarn foundry:compile
+Compiling 56 files with Solc 0.8.33
+Compiler run successful!
+
+$ yarn foundry:test
+17 tests passed, 0 failed, 3 skipped (20 total tests)
+
+$ yarn foundry:test:fork
+31 tests passed, 0 failed, 1 skipped (32 total tests)
+
+$ yarn foundry:test:testnet-fork
+19 tests passed, 0 failed, 2 skipped (21 total tests)
+
+$ yarn manifest:validate
+template.json: valid TemplateManifestSchema
+```
+
+A production server from that archive returned HTTP 200 for `/`, `/vault`, `/lab`, `/debug`, `/blockexplorer`,
+`/api/hedera/account`, `/api/hedera/transaction`, `/api/lab/fast-forward`, `/api/lab/run-due`, and
+`/api/recurring-buy/status` with no wallet, local fork, or network configuration. The first sandboxed start was
+denied with `listen EPERM`; the approved localhost start used port 3001 because an unrelated process already held
+port 3000.
+
+A second archive verified the declared npm package-manager path:
+
+```text
+$ npm install
+added 1527 packages, and audited 1530 packages in 7m
+63 vulnerabilities (4 low, 28 moderate, 28 high, 3 critical)
+```
+
+Installation succeeded. Husky printed `.git can't be found` because `git archive` deliberately omits repository
+metadata, but its postinstall exited successfully. No forceful audit rewrite was applied. The tracked-filename scan found no `.env`,
+keystore, or PEM file. The banned-word scans were empty for authored files and commit messages. The 64-byte hex
+review found only recorded transaction hashes, the Supra feed identifier, and a bytecode excerpt; none is a
+private key.
 
 ## Template manifest
 
