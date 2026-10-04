@@ -158,7 +158,7 @@ The deployment command updates `packages/nextjs/contracts/deployedContracts.ts`.
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
   "$VAULT" 'configure(address,uint256,uint256,uint256,uint256)' "$TOKEN_OUT" 100000000 60 500 7200
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
-  --value 10000000000000000000 "$VAULT" 'deposit()'
+  --value 50000000000000000000 "$VAULT" 'deposit()'
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
   "$VAULT" 'start()'
 ```
@@ -172,6 +172,8 @@ configures the vault, explicitly leaves Bonzo disabled, funds it, and creates th
 export RECURRING_BUY_VAULT=0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350
 export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
 export RECURRING_BUY_DEVIATION_BPS=10000
+# Optional override; the default funds 5 HBAR.
+# export RECURRING_BUY_FUND_WEIBARS=50000000000000000000
 
 cd packages/foundry
 forge script script/ConfigureAndStartRecurringBuy.s.sol \

@@ -21,7 +21,8 @@ contract ConfigureAndStartRecurringBuy is Script {
         uint256 intervalSeconds = vm.envOr("RECURRING_BUY_INTERVAL_SECONDS", uint256(60));
         uint256 deviationBps = vm.envOr("RECURRING_BUY_DEVIATION_BPS", uint256(500));
         uint256 maxPriceAge = vm.envOr("RECURRING_BUY_MAX_PRICE_AGE", uint256(7_200));
-        uint256 fundWeibars = vm.envOr("RECURRING_BUY_FUND_WEIBARS", uint256(10 ether));
+        // Five HBAR leaves room for at least two one-HBAR purchases plus HSS fees.
+        uint256 fundWeibars = vm.envOr("RECURRING_BUY_FUND_WEIBARS", uint256(50 ether));
 
         vm.startBroadcast();
         uint256 associationCode = IHRC719(tokenOut).associate();
