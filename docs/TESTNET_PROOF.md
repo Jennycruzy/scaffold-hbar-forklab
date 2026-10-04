@@ -51,6 +51,26 @@ the failed run below. The `Bought` oracle amount is `103683` against a pool amou
 pool is far from Supra's HBAR price, which is why this run uses the 10000 bps deviation setting described in the
 README.
 
+### Running out of HBAR
+
+The vault was left running at one HBAR per minute. It completed six purchases in total (189,943 base units of the test
+token; runs 3–6 at `1791146144`, `1791146202`, `1791146261`, `1791146320`), leaving 0.7822962 HBAR. The seventh
+schedule, `0.0.10862057`, then reached expiry:
+
+- Executed: `1791146379.228129208`
+- Scheduled transaction: `0.0.7314364-1791145964-792484791` nonce `377`
+- Contract result: `0xa9f5dd87c4563c61892a46741c3a3d47a0d906ec674fda7b50532d71b0c27a35`
+- Result: `INSUFFICIENT_PAYER_BALANCE`, `gas_used` 0 of 2,500,000
+- Fee still charged to the vault: `1735120` tinybars (transfer to node `0.0.802`)
+
+The payer could not cover the 2,500,000 × 82 tinybar gas reservation, so `execute()` never ran: `lastRunAt` stayed at
+`1791146319`, no new schedule was created, and the chain ended while `running()` still reads `true`. The owner
+recovers what is left with `stop()` and `withdraw()`.
+
+Forklab's emulator records the same `INSUFFICIENT_PAYER_BALANCE` status without running the call, but it does not
+charge the payer anything for that failed execution; the real network charged 1,735,120 tinybars. This difference is
+known and not yet modelled.
+
 ## Earlier deployments
 
 The vault from the failed first run (details under "Failed first run" below):
