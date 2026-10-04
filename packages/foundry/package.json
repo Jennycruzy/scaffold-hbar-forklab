@@ -12,6 +12,7 @@
     "compile": "make compile",
     "doctor": "node scripts-js/preflight.js",
     "deploy": "node scripts-js/parseArgs.js",
+    "testnet:start": "bash scripts-js/startTestnetVault.sh",
     "flatten": "make flatten",
     "fork": "make fork",
     "fork:mainnet": "forge build && node scripts-js/forkMainnet.cjs",

@@ -2,7 +2,17 @@
 
 Test against real Hedera locally, including the Hedera Schedule Service. Forklab is a Scaffold-HBAR template for Foundry tests that keep HTS token state, SaucerSwap, Supra, the Mirror Node, and scheduled contract calls in the same workflow.
 
-The local emulator is a test aid, not a replacement for testnet. Fork tests read real Hedera state at a pinned block. A live `RecurringBuy` deployment is recorded in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md). Its first scheduled run failed: the Mirror Node trace shows the swap and owner transfer succeeding, then the re-schedule running out of gas inside a 1,500,000 limit. After the contract and the emulator were fixed for that cause, a fresh vault (`0.0.10861899`) completed two consecutive HSS-triggered purchases on testnet, each using about 1.68M of its 2.5M gas limit.
+Contracts that schedule their own future calls (HIP-1215) are hard to test: Anvil has no schedule service, and testnet makes you wait for real time. Forklab installs a schedule-service emulator at `0x16b` on a fork of real Hedera state. `Forklab.warp(60)` advances time and executes each due schedule as its payer, with its gas limit, call value, and expiry order, and charges the payer the gas and fees measured on testnet. The contract under test still swaps on the real SaucerSwap pools, reads the real Supra feed, and holds real HTS balances at the pinned block. No external system is mocked.
+
+The template ships an example that uses all of it: `RecurringBuy`, a vault that buys a token on SaucerSwap every interval, guarded by Supra's HBAR/USD price and rescheduled by the network itself. On Hedera testnet, vault `0.0.10861899` completed six consecutive scheduled purchases and then ran out of HBAR exactly as the emulator predicts ([`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md), [Mirror Node results](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10861899/results?order=desc)). An earlier vault's first run failed with `INSUFFICIENT_GAS` on the re-schedule; that failure is why the emulator now charges the measured 1,409,649 gas for each schedule creation, and the fork test `test_testnetFailureGasLimitCannotFundRescheduleAndPurchase` reproduces it.
+
+| You get | Where |
+| --- | --- |
+| HSS emulator: create, sign, delete, capacity, expiry order, payer gas and fees | `contracts/forklab/ForklabHss.sol`, `Forklab.warp` |
+| HTS on a fork, with association and allowances read from the Mirror Node at the pinned block | `contracts/forklab/ForklabHts.sol`, `ForklabMirrorNode.sol` |
+| Fork tests against real SaucerSwap, Supra, and Bonzo Lend | `packages/foundry/test/fork/` |
+| A scheduled-vault example with a factory, deploy script, and one-command testnet start | `RecurringBuy.sol`, `yarn foundry:testnet:start` |
+| `/` live testnet status, `/vault` create and run a vault, `/lab` fast-forward a local fork | `packages/nextjs/app/` |
 
 ## Prerequisites
 
@@ -19,14 +29,16 @@ Foundry v1.5.0 is pinned because Hashio currently rejects the EIP-1898 block-obj
 Create a project from the published template:
 
 ```bash
-npm create scaffold-hbar@latest -- --template jennycruzy/scaffold-hbar-forklab
-cd scaffold-hbar-forklab
-npm install
-npm run foundry:doctor
-npm run foundry:test
-npm run foundry:test:fork
-npm run next:dev
+npm create scaffold-hbar@latest my-forklab -- --template jennycruzy/scaffold-hbar-forklab
+cd my-forklab
+yarn foundry:doctor        # checks Foundry v1.5.0, cast, curl, and FFI
+yarn foundry:test          # offline emulator tests
+yarn foundry:test:fork     # pinned mainnet fork: SaucerSwap, Supra, HTS, Bonzo
+yarn next:dev              # http://localhost:3000
 ```
+
+The CLI installs dependencies itself. Put `--` before `--template`, or npm keeps the flag for itself. Add
+`--package-manager npm` for an npm project and use `npm run <script>` in place of `yarn <script>`.
 
 With the repository checkout, use the equivalent Yarn commands:
 
@@ -57,7 +69,7 @@ The emulator is for deterministic development; live testnet proof remains the fi
 
 ### Oracle choice
 
-Forklab intentionally uses Supra rather than the Pyth integration named in the original specification. Since 26 August 2026, [Pyth Hermes requires an API key](https://docs.pyth.network/price-feeds/core/upgrade/preparing), with a free trial and paid plans for continued use. Supra pair `432` is an on-chain HBAR/USD push feed that can be read without an API credential. Supra, not the test, publishes that value: fork tests read the real observation already present at the pinned block instead of updating or replacing the oracle. Supra documents a one-hour push frequency on both Hedera networks, so new configurations should use the contract's two-hour `DEFAULT_MAX_PRICE_AGE` unless a measured feed interval justifies another value.
+Forklab uses Supra rather than Pyth for the HBAR/USD price. Since 26 August 2026, [Pyth Hermes requires an API key](https://docs.pyth.network/price-feeds/core/upgrade/preparing), with a free trial and paid plans for continued use. Supra pair `432` is an on-chain HBAR/USD push feed that can be read without an API credential. Supra, not the test, publishes that value: fork tests read the real observation already present at the pinned block instead of updating or replacing the oracle. Supra documents a one-hour push frequency on both Hedera networks, so new configurations should use the contract's two-hour `DEFAULT_MAX_PRICE_AGE` unless a measured feed interval justifies another value.
 
 Pair `432` is HBAR/USD, so `RecurringBuy` values one unit of `tokenOut` at one US dollar. Use a USD-pegged token. For any other token, every run skips for deviation, or, with a very wide deviation setting, the swap loses its slippage floor.
 
@@ -157,27 +169,24 @@ The default deploy script deploys `RecurringBuy` and `RecurringBuyFactory` with 
 node .yarn/releases/yarn-3.2.3.cjs foundry:deploy --network hedera_testnet --keystore "$KEYSTORE_NAME"
 ```
 
-Before `start()`, the owner associates with `tokenOut` and approves the vault for one base unit. Both must be direct transactions from the owner account: HRC-719 `isAssociated()` checks `msg.sender`, so the vault cannot query another account's association, and reads the owner's approval instead. This approval proves only that the owner signed an approve on the token; whether Hedera rejects `approve` from an unassociated account has not yet been confirmed on testnet.
+Then start it. One command associates the owner with `tokenOut`, approves the vault for one base unit, configures it,
+sets the gas limit, funds it with 15 HBAR, calls `start()`, and watches the first two scheduled runs. It asks for the
+keystore password once, skips any step that is already done, and reads the vault address from the deploy broadcast:
 
 ```bash
-cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" --legacy "$TOKEN_OUT" 'associate()'
-cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" --legacy "$TOKEN_OUT" 'approve(address,uint256)' "$VAULT" 1
+KEYSTORE_NAME="$KEYSTORE_NAME" node .yarn/releases/yarn-3.2.3.cjs foundry:testnet:start
 ```
 
-Then configure, fund, and start with the Forge script. `RECURRING_BUY_VAULT` is required; the other values have defaults:
+Set `VAULT=0x...` to start a different vault. The defaults (`RECURRING_BUY_TOKEN_OUT`, `RECURRING_BUY_AMOUNT_TINYBARS`,
+`RECURRING_BUY_INTERVAL_SECONDS`, `RECURRING_BUY_DEVIATION_BPS`, `RECURRING_BUY_EXECUTION_GAS`,
+`RECURRING_BUY_FUND_WEIBARS`) are at the top of `packages/foundry/scripts-js/startTestnetVault.sh`.
 
-```bash
-export RECURRING_BUY_VAULT=0x...                 # required
-# export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
-# export RECURRING_BUY_DEVIATION_BPS=10000
-# export RECURRING_BUY_EXECUTION_GAS=2500000
-# export RECURRING_BUY_FUND_WEIBARS=15000000000000000000   # 15 HBAR
+Association and approval must come from the owner account: HRC-719 `isAssociated()` checks `msg.sender`, so the vault
+cannot query another account's association and reads the owner's one-unit approval instead.
 
-cd packages/foundry
-forge script script/ConfigureAndStartRecurringBuy.s.sol \
-  --rpc-url https://testnet.hashio.io/api \
-  --account "$KEYSTORE_NAME" --broadcast --slow --legacy
-```
+The script uses `cast send`, not `forge script`. Forge simulates a script locally before broadcasting, that simulation
+has no Hedera system contracts, and `start()` (HTS association plus an HSS `scheduleCall`) reverts there with
+`InvalidFEOpcode` even though it succeeds on the network.
 
 Funding: each run reserves gas at the full limit (`2,500,000 × 83` tinybars = 2.075 HBAR at the 4 October 2026 testnet price), pays the gas it actually uses (the measured schedule creation alone is 1,409,649 gas), and spends `amountPerBuy`. Payable JSON-RPC values are weibars (`1 tinybar = 10^10 weibars`); `configure` takes tinybars.
 

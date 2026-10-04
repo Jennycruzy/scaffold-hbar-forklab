@@ -23,6 +23,7 @@
     "foundry:fork:pin": "yarn workspace @forklab/foundry fork:pin",
     "foundry:fork:pin:testnet": "yarn workspace @forklab/foundry fork:pin:testnet",
     "foundry:deploy": "yarn workspace @forklab/foundry deploy",
+    "foundry:testnet:start": "yarn workspace @forklab/foundry testnet:start",
     "foundry:flatten": "yarn workspace @forklab/foundry flatten",
     "foundry:fork": "yarn workspace @forklab/foundry fork",
     "fork:mainnet": "yarn workspace @forklab/foundry fork:mainnet",

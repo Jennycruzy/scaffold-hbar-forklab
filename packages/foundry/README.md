@@ -47,8 +47,7 @@ node .yarn/releases/yarn-3.2.3.cjs foundry:deploy \
 
 This deploys `RecurringBuy` and `RecurringBuyFactory` and updates `packages/nextjs/contracts/deployedContracts.ts`.
 
-To run the vault, send the token's direct HRC-719 `associate()` transaction and approve the vault for one base unit
-from the owner account, then run `script/ConfigureAndStartRecurringBuy.s.sol` with `RECURRING_BUY_VAULT` set. The
-script configures the vault, sets the execution gas limit (2,500,000 by default), leaves Bonzo disabled, funds the
-vault with 15 HBAR by default, and starts the first schedule. Association must be direct because HRC-719 checks
+To run the vault, use `KEYSTORE_NAME=<keystore> yarn foundry:testnet:start` (`scripts-js/startTestnetVault.sh`). It
+sends the owner's direct HRC-719 `associate()` and a one-unit approval, configures the vault, sets the execution gas
+limit (2,500,000 by default), funds it with 15 HBAR by default, starts the first schedule, and watches two runs. Association must be direct because HRC-719 checks
 `msg.sender`; the allowance is the queryable owner proof. The full command is in the repository README.
