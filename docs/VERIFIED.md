@@ -4,7 +4,8 @@ This file records commands run against the pinned toolchain and live Hedera serv
 
 ## Latest HEAD checks
 
-After the Hashscan transaction-link fix at commit `d577a57`, the repository-side checks returned:
+On 4 October 2026, after the insufficient-balance fee and the association-lookup fix (on top of `e1a3345`), the
+repository-side checks returned:
 
 ```text
 $ node .yarn/releases/yarn-3.2.3.cjs lint
@@ -14,28 +15,29 @@ All matched files use Prettier code style!
 $ node .yarn/releases/yarn-3.2.3.cjs next:check-types
 exit 0
 
-$ node .yarn/releases/yarn-3.2.3.cjs next:build
-✓ Compiled successfully
-✓ Generating static pages (15/15)
-
-$ node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
-Ran 6 test suites in 136.36s: 19 tests passed, 0 failed, 2 skipped (21 total tests)
-  test_testnetHbarToSauceMatchesRouterQuote: PASS
-  test_testnetRecurringBuyRunsAndReschedules: PASS
-
 $ node .yarn/releases/yarn-3.2.3.cjs foundry:compile
 Compiler run successful!
 
 $ node .yarn/releases/yarn-3.2.3.cjs foundry:test
-17 tests passed, 0 failed, 3 skipped (20 total tests)
+Ran 7 test suites: 32 tests passed, 0 failed, 4 skipped (36 total tests)
+
+$ node .yarn/releases/yarn-3.2.3.cjs foundry:test:fork
+Ran 6 test suites: 50 tests passed, 0 failed, 1 skipped (51 total tests)
+Ran 1 test suite (BonzoSweepMainnet, bonzoMainnet pin): 1 tests passed, 0 failed, 0 skipped
+
+$ node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
+Ran 7 test suites: 34 tests passed, 0 failed, 3 skipped (37 total tests)
+
+$ NODE_OPTIONS=--max-old-space-size=3072 node .yarn/releases/yarn-3.2.3.cjs next:build
+✓ Generating static pages (15/15)
 
 $ node scripts/validate-template.mjs
 template.json: valid TemplateManifestSchema
-
-The testnet-fork run used the real WHBAR-SAUCE pair and verified the router's quoted output. Its recurring-buy
-case intentionally records a deviation skip because SAUCE is not USD-denominated; it does not claim a stablecoin
-purchase or live testnet schedule execution.
 ```
+
+The skipped tests are suites that require the other network's pin. On a 1.9 GB machine, `next:build` with Node's
+default heap failed with `JavaScript heap out of memory`; the larger heap limit is a build-machine setting, not a code
+change.
 
 The full clean-copy acceptance run at commit `6951e2c` rebuilt all four Foundry libraries from the lockfile tags
 with Foundry 1.5.0's `forge install --no-git` syntax. The first attempt used the removed `--no-commit` flag and
@@ -423,7 +425,9 @@ configurable with `Forklab.setScheduleCreateGas` and `Forklab.setGasPriceTinybar
 
 The successful runs of vault `0.0.10861899` (4 October 2026) confirm the model: two scheduled `execute()` calls
 used 1,684,515 and 1,667,415 gas under a 2,500,000 limit and were charged exactly `gasUsed × 82` tinybars
-(138,130,230 and 136,728,030); the price had moved from 83 to 82 tinybars per gas. HTS gas is not re-priced:
+(138,130,230 and 136,728,030); the price had moved from 83 to 82 tinybars per gas. When the vault then ran out of
+HBAR, schedule `0.0.10862057` failed with `INSUFFICIENT_PAYER_BALANCE`, used no gas, and still charged the payer
+1,735,120 tinybars. `ForklabHss` charges that amount by default (`Forklab.setInsufficientBalanceFeeTinybars`). HTS gas is not re-priced:
 upstream `associateToken` is not virtual and `lib/` must not be edited, so emulated HTS calls cost their EVM
 execution gas.
 
@@ -695,6 +699,32 @@ true
 ```
 
 The owner association check in the deployed flow is backed by an owner-specific HTS allowance. HRC-719's `isAssociated()` has no account argument, so the owner EOA must check it directly and approve the vault for one token base unit before `start()`. The vault can then query `allowance(owner, vault)` without relying on the current call frame. A 4 October 2026 testnet transaction proved that `transferFrom(owner, owner, 0)` is not a valid substitute even for an associated owner: Hedera returned `ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS`. Fork testing also proved that zero-value transfers with distinct accounts do not reliably reject an unavailable owner relationship. The allowance proof avoids both behaviours and produces `OwnerTokenAssociationRequired` when absent.
+
+## Association lookups at the fork block
+
+On 4 October 2026 the Mirror Node rejected a timestamp on the account-token endpoint that hedera-forking uses for
+`isAssociated()`:
+
+```text
+GET https://mainnet-public.mirrornode.hedera.com/api/v1/accounts/0xC376f5159300C1b16d2d711cc43AFCaF7433B0EE/tokens?token.id=0.0.456858&timestamp=lte:1790821038.006379925
+400 {"_status":{"messages":[{"message":"Unknown query parameter: timestamp"}]}}
+```
+
+Every association lookup on the fork therefore returned `false`, and `test_unassociatedOwnerCannotStart` failed
+because the associated owner read as unassociated. `ForklabMirrorNode.fetchTokenRelationshipOfAccount` now requests
+the endpoint without a timestamp (as upstream `MirrorNodeFFI` does) and treats a relationship whose
+`created_timestamp` is later than the fork block's timestamp as absent. A relationship that was removed after the fork
+is not returned by this endpoint and cannot be reconstructed.
+
+Proof account: mainnet `0.0.10162362` (`0x00000000000000000000000000000000009b10ba`):
+
+```text
+GET /api/v1/accounts/0x00000000000000000000000000000000009b10ba/tokens?token.id=0.0.456858
+{"tokens":[{"automatic_association":false,"balance":0,"created_timestamp":"1790829609.024372590","decimals":6,"token_id":"0.0.456858",...}]}
+```
+
+`test_associationCreatedAfterThePinIsNotVisible` asserts that this account reads as unassociated at the pin
+(`1790821038.006379925`). With the created-timestamp filter disabled, the same test fails with `assertion failed`.
 
 ## Passing Forklab proofs
 

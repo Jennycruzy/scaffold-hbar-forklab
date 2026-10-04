@@ -67,9 +67,10 @@ The payer could not cover the 2,500,000 × 82 tinybar gas reservation, so `execu
 `1791146319`, no new schedule was created, and the chain ended while `running()` still reads `true`. The owner
 recovers what is left with `stop()` and `withdraw()`.
 
-Forklab's emulator records the same `INSUFFICIENT_PAYER_BALANCE` status without running the call, but it does not
-charge the payer anything for that failed execution; the real network charged 1,735,120 tinybars. This difference is
-known and not yet modelled.
+Forklab's emulator now reproduces this: it records `INSUFFICIENT_PAYER_BALANCE` without running the call and charges
+the payer 1,735,120 tinybars (or its whole balance, if smaller), configurable with
+`Forklab.setInsufficientBalanceFeeTinybars`. `test_insufficientPayerIsChargedTheMeasuredFee` and the fork test
+`test_vaultRunsTwoBuysThenRunsOutOfHbar` assert the charge.
 
 ## Earlier deployments
 

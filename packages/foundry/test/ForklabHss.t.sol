@@ -129,6 +129,40 @@ contract ForklabHssTest is Test {
         assertEq(target.callCount(), 0);
     }
 
+    function test_insufficientPayerIsChargedTheMeasuredFee() public {
+        address payer = address(new ForklabScheduleTarget());
+        address hss = address(0x16b);
+        bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (4));
+
+        // A payer that cannot reserve gas still pays the measured 1,735,120 tinybars.
+        vm.prank(payer);
+        (, address charged) = HSS.scheduleCall(address(target), block.timestamp + 1, 2_500_000, 0, callData);
+        vm.deal(payer, 78_229_620);
+        uint256 hssBefore = hss.balance;
+        assertEq(Forklab.warp(1), 1);
+        assertEq(Forklab.schedule(charged).status, INSUFFICIENT_PAYER_BALANCE);
+        assertEq(payer.balance, 78_229_620 - 1_735_120);
+        assertEq(hss.balance, hssBefore + 1_735_120);
+        assertEq(target.callCount(), 0);
+
+        // A payer holding less than the fee is charged what it has.
+        vm.prank(payer);
+        (, address drained) = HSS.scheduleCall(address(target), block.timestamp + 1, 2_500_000, 0, callData);
+        vm.deal(payer, 1_000);
+        assertEq(Forklab.warp(1), 1);
+        assertEq(Forklab.schedule(drained).status, INSUFFICIENT_PAYER_BALANCE);
+        assertEq(payer.balance, 0);
+
+        // The fee is configurable.
+        Forklab.setInsufficientBalanceFeeTinybars(0);
+        vm.prank(payer);
+        (, address free) = HSS.scheduleCall(address(target), block.timestamp + 1, 2_500_000, 0, callData);
+        vm.deal(payer, 5_000);
+        assertEq(Forklab.warp(1), 1);
+        assertEq(payer.balance, 5_000);
+        assertEq(Forklab.schedule(free).status, INSUFFICIENT_PAYER_BALANCE);
+    }
+
     function test_scheduleCreationChargesMeasuredHederaGas() public {
         bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (1));
         uint256 gasBefore = gasleft();

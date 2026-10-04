@@ -110,20 +110,27 @@ contract ForklabMirrorNode is MirrorNode {
         return _get(_withTimestamp(string.concat("accounts/", idOrAliasOrEvmAddress, "?transactions=false")));
     }
 
-    /// @notice Fetches an account-token relationship at the fork timestamp.
+    /// @notice Fetches an account-token relationship as of the fork timestamp.
+    /// @dev `/accounts/{id}/tokens` rejects a `timestamp` parameter (HTTP 400, "Unknown query
+    ///      parameter: timestamp"), so the current relationship is fetched and dropped when it was
+    ///      created after the fork. A relationship removed after the fork cannot be seen here.
     /// @param idOrAliasOrEvmAddress An account id, alias, or EVM address.
     /// @param token The long-zero token address.
-    /// @return json The Mirror Node response body.
+    /// @return json The Mirror Node response body, with `tokens` empty if associated after the fork.
     function fetchTokenRelationshipOfAccount(string memory idOrAliasOrEvmAddress, address token)
         external
         override
         returns (string memory json)
     {
-        return _get(
-            _withTimestamp(
-                string.concat("accounts/", idOrAliasOrEvmAddress, "/tokens?token.id=0.0.", VM.toString(uint160(token)))
-            )
+        json = _get(
+            string.concat("accounts/", idOrAliasOrEvmAddress, "/tokens?token.id=0.0.", VM.toString(uint160(token)))
         );
+        if (
+            bytes(_forkTimestamp).length != 0 && VM.keyExistsJson(json, ".tokens[0].created_timestamp")
+                && _isAfter(VM.parseJsonString(json, ".tokens[0].created_timestamp"), _forkTimestamp)
+        ) {
+            return '{"tokens":[]}';
+        }
     }
 
     /// @notice Fetches a non-fungible token record at the fork timestamp.
@@ -146,6 +153,27 @@ contract ForklabMirrorNode is MirrorNode {
     /// @return json The Mirror Node response body.
     function fetchBlock(uint256 blockNumber) external returns (string memory json) {
         return _get(string.concat("blocks/", VM.toString(blockNumber)));
+    }
+
+    /// @dev Compares Mirror Node `seconds.nanoseconds` timestamps; nanoseconds are always nine digits.
+    function _isAfter(string memory a, string memory b) private pure returns (bool) {
+        (uint256 aSeconds, uint256 aNanos) = _splitTimestamp(a);
+        (uint256 bSeconds, uint256 bNanos) = _splitTimestamp(b);
+        return aSeconds > bSeconds || (aSeconds == bSeconds && aNanos > bNanos);
+    }
+
+    function _splitTimestamp(string memory timestamp) private pure returns (uint256 secondsPart, uint256 nanosPart) {
+        bytes memory raw = bytes(timestamp);
+        bool fraction;
+        for (uint256 i; i < raw.length; i++) {
+            if (raw[i] == ".") {
+                fraction = true;
+                continue;
+            }
+            uint256 digit = uint8(raw[i]) - 48;
+            if (fraction) nanosPart = nanosPart * 10 + digit;
+            else secondsPart = secondsPart * 10 + digit;
+        }
     }
 
     function _withTimestamp(string memory endpoint) private view returns (string memory) {

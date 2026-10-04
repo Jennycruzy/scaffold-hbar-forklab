@@ -148,6 +148,12 @@ library Forklab {
         ForklabHss(HSS_ADDRESS).setScheduleCreateGas(value);
     }
 
+    /// @notice Sets the fee charged when a payer cannot cover an execution (default 1,735,120, measured on testnet).
+    /// @param value Tinybars; 0 disables the charge.
+    function setInsufficientBalanceFeeTinybars(uint256 value) internal {
+        ForklabHss(HSS_ADDRESS).setInsufficientBalanceFeeTinybars(value);
+    }
+
     /// @notice Sets the tinybars charged per execution gas unit (default 83).
     /// @param value Tinybars per gas; 0 disables execution gas fees.
     function setGasPriceTinybars(uint256 value) internal {

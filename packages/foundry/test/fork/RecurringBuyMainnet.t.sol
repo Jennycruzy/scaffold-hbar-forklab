@@ -30,6 +30,9 @@ contract RecurringBuyMainnetTest is Test {
     ///      `/accounts/0.0.5000/tokens?token.id=0.0.456858` returns no tokens and
     ///      `max_automatic_token_associations` is 0, so it holds no USDC relationship.
     address private constant UNASSOCIATED_ACCOUNT = 0x0000000000000000000000000000000000001388;
+    /// @dev Mainnet account 0.0.10162362. Mirror Node, 4 October 2026: its USDC relationship has
+    ///      `created_timestamp` 1790829609.024372590, after the pinned block's 1790821038.006379925.
+    address private constant ASSOCIATED_AFTER_PIN = 0x00000000000000000000000000000000009B10BA;
 
     ISaucerSwapRouterRecurringBuy private constant ROUTER_CONTRACT = ISaucerSwapRouterRecurringBuy(ROUTER);
     ISupraSValueFeed private constant SUPRA_CONTRACT = ISupraSValueFeed(SUPRA);
@@ -157,11 +160,14 @@ contract RecurringBuyMainnetTest is Test {
         assertLt(address(vault).balance, FULL_LIMIT_FEE);
 
         address failingSchedule = vault.nextSchedule();
+        uint256 beforeFailure = address(vault).balance;
         vm.expectEmit(true, false, false, false, address(0x16b));
         emit ScheduleExecuted(failingSchedule, false, bytes(""));
         assertEq(Forklab.warp(60), 1);
         assertEq(Forklab.schedule(failingSchedule).status, INSUFFICIENT_PAYER_BALANCE);
         assertFalse(Forklab.schedule(failingSchedule).success);
+        // As on testnet (schedule 0.0.10862057), the failed attempt still costs 1,735,120 tinybars.
+        assertEq(address(vault).balance, beforeFailure - 1_735_120);
     }
 
     /// @notice The 1,500,000 gas limit that failed on testnet cannot fund both the
@@ -268,6 +274,12 @@ contract RecurringBuyMainnetTest is Test {
         vm.prank(UNASSOCIATED_ACCOUNT);
         vm.expectRevert(RecurringBuy.OwnerTokenAssociationRequired.selector);
         vault.start();
+    }
+
+    /// @notice An association created after the pinned block is not visible at the pin.
+    function test_associationCreatedAfterThePinIsNotVisible() external {
+        vm.prank(ASSOCIATED_AFTER_PIN);
+        assertFalse(IHRC719(USDC).isAssociated());
     }
 
     function _newVault(uint256 intervalSeconds, uint256 deviationBps, uint256 priceAgeSeconds)

@@ -86,6 +86,9 @@ contract ForklabHss is IHederaScheduleService {
     uint256 private _scheduleFeeTinybars;
     uint256 private _scheduleCreateGas = 1_409_649;
     uint256 private _gasPriceTinybars = 83;
+    // Measured on testnet: schedule 0.0.10862057 failed with INSUFFICIENT_PAYER_BALANCE
+    // and the payer was still charged 1,735,120 tinybars (see docs/TESTNET_PROOF.md).
+    uint256 private _insufficientBalanceFeeTinybars = 1_735_120;
     bool private _strictDelegatecall = true;
     bool private _installDeleteForwarders = true;
 
@@ -288,6 +291,18 @@ contract ForklabHss is IHederaScheduleService {
     /// @param value Tinybars per gas; 0 disables gas fees.
     function setGasPriceTinybars(uint256 value) external {
         _gasPriceTinybars = value;
+    }
+
+    /// @notice Sets the fee charged to a payer whose execution fails with INSUFFICIENT_PAYER_BALANCE.
+    /// @param value The fee in tinybars (default 1,735,120, measured on testnet); 0 disables it.
+    function setInsufficientBalanceFeeTinybars(uint256 value) external {
+        _insufficientBalanceFeeTinybars = value;
+    }
+
+    /// @notice Returns the fee charged for an execution the payer cannot afford.
+    /// @return The fee in tinybars.
+    function insufficientBalanceFeeTinybars() external view returns (uint256) {
+        return _insufficientBalanceFeeTinybars;
     }
 
     /// @notice Returns the gas model used for creation and execution.
@@ -493,7 +508,15 @@ contract ForklabHss is IHederaScheduleService {
         emit ScheduleExecuted(scheduleAddress, success, returnData);
     }
 
+    /// @dev Hedera still charges the payer when it cannot cover the gas reservation; the
+    ///      call never runs. A payer holding less than the fee is charged what it has.
     function _recordInsufficient(ScheduleState storage state, address scheduleAddress) private {
+        uint256 payerBalance = state.info.payer.balance;
+        uint256 fee = _insufficientBalanceFeeTinybars < payerBalance ? _insufficientBalanceFeeTinybars : payerBalance;
+        if (fee != 0) {
+            VM.deal(state.info.payer, payerBalance - fee);
+            VM.deal(address(this), address(this).balance + fee);
+        }
         state.info.status = INSUFFICIENT_PAYER_BALANCE;
         state.info.success = false;
         state.info.returnData = bytes("");

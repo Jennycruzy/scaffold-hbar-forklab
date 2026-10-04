@@ -227,6 +227,7 @@ contract FirstScheduledCallTest is Test {
 - Mirror Node responses are timestamp-bounded to the pinned fork block, but token balances come from periodic Mirror Node snapshots. If a pair swapped after the last snapshot before the pin, its reserves and emulated balances disagree and swaps revert with `K`. `fork:pin` only accepts blocks where they agree.
 - Creating a schedule from a contract is expensive on Hedera: `scheduleCall` used 1,409,649 gas on testnet. `ForklabHss` charges that gas (`Forklab.setScheduleCreateGas`) and fails the calling frame when it cannot be paid, as the real call did with `INSUFFICIENT_GAS`.
 - Scheduled execution reserves gas at the full limit from the payer and charges the gas used at 83 tinybars per gas (`Forklab.setGasPriceTinybars`), the testnet ContractCall price on 4 October 2026.
+- A payer that cannot cover that reservation gets `INSUFFICIENT_PAYER_BALANCE`, the call never runs, and the payer is still charged 1,735,120 tinybars (`Forklab.setInsufficientBalanceFeeTinybars`), as schedule `0.0.10862057` was on testnet.
 - A marked proxy that schedules from a delegated implementation frame is created normally, then records status `7` at execution without calling its target. Mark it with `Forklab.markDelegateScheduler(proxy, true)` in a test.
 - EVM HBAR values are tinybars (`1 HBAR = 100_000_000`). HSS `value` is also tinybars; JSON-RPC relay values use weibars.
 - A scheduled payer must hold the call value plus the gas reservation, or the run records status `10`.

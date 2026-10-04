@@ -7,7 +7,7 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 - Do not fake external systems. SaucerSwap, Supra, HTS, Mirror Node, HSS, and Bonzo sweep tests use real fork or network state. Bonzo's mainnet pool is paused at the main pin (`Error("64")`, `LP_IS_PAUSED`); the successful sweep proof runs on the pre-pause `bonzoMainnet` pin.
 - Call `Forklab.setUp()` before using HTS or HSS in a fork test.
 - Pin the fork block with `fork:pin`, which only accepts blocks whose Mirror Node balance snapshot matches a reference pair. Record the block, chain id, RPC command, and result in `docs/VERIFIED.md`.
-- Fund every HSS payer for gas: the emulator reserves `gasLimit × 83` tinybars and charges schedule creation 1,409,649 gas, as measured on testnet.
+- Fund every HSS payer for gas: the emulator reserves `gasLimit × 83` tinybars and charges schedule creation 1,409,649 gas, as measured on testnet. A payer that cannot cover the reservation is still charged 1,735,120 tinybars, as testnet did.
 - Use named tinybar constants. One HBAR is `100_000_000` EVM units.
 - `deal` may fund a test account before an action, but never edit a pool, oracle, or lending reserve to hide a failure.
 - Do not use `vm.mockCall` for an external contract.
