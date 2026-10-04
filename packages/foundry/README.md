@@ -44,6 +44,8 @@ node .yarn/releases/yarn-3.2.3.cjs foundry:deploy \
 ```
 
 After selecting and measuring a real testnet pair, optionally set `RECURRING_BUY_VAULT` and `RECURRING_BUY_TOKEN_OUT`,
-then run `script/ConfigureAndStartRecurringBuy.s.sol`. It associates the signing account, configures the vault, leaves
-Bonzo disabled unless separately configured, funds the vault with 5 HBAR by default, and starts the first schedule.
+then send the token's direct HRC-719 `associate()` transaction from that account and run
+`script/ConfigureAndStartRecurringBuy.s.sol`. The script configures the vault, leaves Bonzo disabled unless
+separately configured, funds the vault with 5 HBAR by default, and starts the first schedule. Association must be
+direct because HRC-719 checks `msg.sender`.
 The full command and current proof-only token are documented in the repository README.
