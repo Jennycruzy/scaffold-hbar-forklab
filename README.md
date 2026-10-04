@@ -152,25 +152,27 @@ The default deploy script now deploys `RecurringBuy` with the verified Hedera te
 node .yarn/releases/yarn-3.2.3.cjs foundry:deploy --network hedera_testnet --keystore "$KEYSTORE_NAME"
 ```
 
-The deployment command updates `packages/nextjs/contracts/deployedContracts.ts`. Set `VAULT` to the emitted address and `TOKEN_OUT` to the selected, verified testnet-pair token. The example buys 1 HBAR every 60 seconds, allows 5% deviation/slippage, accepts the documented two-hour Supra age, funds ten runs, and starts scheduling:
+The deployment command updates `packages/nextjs/contracts/deployedContracts.ts`. Set `VAULT` to the emitted address and `TOKEN_OUT` to the selected, verified testnet-pair token. The example buys 1 HBAR every 60 seconds, allows 5% deviation/slippage, accepts the documented two-hour Supra age, funds five runs, and starts scheduling:
 
 ```bash
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" --legacy \
   "$TOKEN_OUT" 'associate()'
+cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" --legacy \
+  "$TOKEN_OUT" 'approve(address,uint256)' "$VAULT" 1
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
   "$VAULT" 'configure(address,uint256,uint256,uint256,uint256)' "$TOKEN_OUT" 100000000 60 500 7200
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
-  --value 50000000000000000000 "$VAULT" 'deposit()'
+  --value 5000000000000000000 "$VAULT" 'deposit()'
 cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
   "$VAULT" 'start()'
 ```
 
 The payable JSON-RPC value is in weibars (`1 tinybar = 10^10 weibars`), while `configure` takes tinybars. The live proof must select `TOKEN_OUT` from a pool with measured testnet liquidity before running these commands.
 
-The remaining setup can be broadcast with the Forge script. The owner association must be the direct EOA
-transaction shown above: HRC-719 checks `msg.sender`, and a call made from inside a Forge script would identify
-the temporary script contract instead of the signing account. The script configures the vault, explicitly leaves
-Bonzo disabled, funds it, and creates the first schedule:
+The remaining setup can be broadcast with the Forge script. The association and one-base-unit approval must be
+direct EOA transactions: HRC-719 checks `msg.sender`, while the approval gives the vault an owner-specific token
+relationship proof it can query before scheduling. The script configures the vault, explicitly leaves Bonzo
+disabled, funds it, and creates the first schedule:
 
 ```bash
 # These two overrides are optional; the script defaults to the current proof
@@ -179,7 +181,7 @@ Bonzo disabled, funds it, and creates the first schedule:
 # export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
 # export RECURRING_BUY_DEVIATION_BPS=10000
 # Optional override; the default funds 5 HBAR.
-# export RECURRING_BUY_FUND_WEIBARS=50000000000000000000
+# export RECURRING_BUY_FUND_WEIBARS=5000000000000000000
 
 cd packages/foundry
 forge script script/ConfigureAndStartRecurringBuy.s.sol \

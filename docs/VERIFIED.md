@@ -571,7 +571,7 @@ true
 10000000 [1e7]
 ```
 
-The owner association check in the deployed flow is backed by the real recipient relationship. HRC-719's `isAssociated()` has no account argument, so the owner EOA must also be checked directly by the deploying client before `start()`; the vault uses a zero-value self-transfer probe to fail before scheduling when receipt is unavailable.
+The owner association check in the deployed flow is backed by an owner-specific HTS allowance. HRC-719's `isAssociated()` has no account argument, so the owner EOA must check it directly and approve the vault for one token base unit before `start()`. The vault can then query `allowance(owner, vault)` without relying on the current call frame. A 4 October 2026 testnet transaction proved that `transferFrom(owner, owner, 0)` is not a valid substitute even for an associated owner: Hedera returned `ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS`. Fork testing also proved that zero-value transfers with distinct accounts do not reliably reject an unavailable owner relationship. The allowance proof avoids both behaviours and produces `OwnerTokenAssociationRequired` when absent.
 
 ## Passing Forklab proofs
 

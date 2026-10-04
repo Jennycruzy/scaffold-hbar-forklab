@@ -16,7 +16,7 @@ interface IERC20RecurringBuy {
 
     function approve(address spender, uint256 amount) external returns (bool);
 
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+    function allowance(address tokenOwner, address spender) external view returns (uint256);
 }
 
 interface IBonzoLendingPoolRecurringBuy {
@@ -347,10 +347,14 @@ contract RecurringBuy {
         }
     }
 
-    function _checkOwnerCanReceive() private {
+    function _checkOwnerCanReceive() private view {
+        // HRC-719 cannot query another account, but this owner-specific approval
+        // is established by a direct, signed token transaction from the owner.
         (bool success, bytes memory result) =
-            tokenOut.call(abi.encodeWithSelector(IERC20RecurringBuy.transferFrom.selector, owner, owner, uint256(0)));
-        if (!success || result.length < 32 || !abi.decode(result, (bool))) revert OwnerTokenAssociationRequired();
+            tokenOut.staticcall(abi.encodeWithSelector(IERC20RecurringBuy.allowance.selector, owner, address(this)));
+        if (!success || result.length < 32 || abi.decode(result, (uint256)) == 0) {
+            revert OwnerTokenAssociationRequired();
+        }
     }
 
     function _createSchedule(uint256 firstCandidate) private returns (int64 responseCode, address scheduleAddress) {

@@ -191,6 +191,20 @@ contract RecurringBuyMainnetTest is Test {
         vault.execute();
     }
 
+    /// @notice A distinct zero-value transfer rejects an owner without the token relationship.
+    function test_ownerWithoutAssociationGetsClearError() external {
+        address unassociatedOwner = makeAddr("unassociated-owner");
+        vm.prank(unassociatedOwner);
+        RecurringBuy vault = new RecurringBuy(SUPRA, ROUTER);
+        vm.prank(unassociatedOwner);
+        vault.configure(USDC, TINYBARS_PER_HBAR, 60, 500, 7_200);
+        assertTrue(Forklab.associateLocalAccount(USDC, address(vault)));
+
+        vm.prank(unassociatedOwner);
+        vm.expectRevert(RecurringBuy.OwnerTokenAssociationRequired.selector);
+        vault.start();
+    }
+
     function _newVault(uint256 intervalSeconds, uint256 deviationBps, uint256 priceAgeSeconds)
         private
         returns (RecurringBuy vault)
@@ -200,6 +214,8 @@ contract RecurringBuyMainnetTest is Test {
         vm.prank(OWNER);
         vault.configure(USDC, TINYBARS_PER_HBAR, intervalSeconds, deviationBps, priceAgeSeconds);
         assertTrue(Forklab.associateLocalAccount(USDC, address(vault)));
+        vm.prank(OWNER);
+        IERC20RecurringBuy(USDC).approve(address(vault), 1);
     }
 
     function _quoteOneHbar() private view returns (uint256 amountOut) {
