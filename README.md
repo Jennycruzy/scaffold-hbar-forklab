@@ -169,9 +169,11 @@ The same setup can be broadcast with one keystore prompt. The script associates 
 configures the vault, explicitly leaves Bonzo disabled, funds it, and creates the first schedule:
 
 ```bash
-export RECURRING_BUY_VAULT=0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350
-export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
-export RECURRING_BUY_DEVIATION_BPS=10000
+# These two overrides are optional; the script defaults to the current proof
+# deployment and its selected testnet token.
+# export RECURRING_BUY_VAULT=0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350
+# export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
+# export RECURRING_BUY_DEVIATION_BPS=10000
 # Optional override; the default funds 5 HBAR.
 # export RECURRING_BUY_FUND_WEIBARS=50000000000000000000
 
