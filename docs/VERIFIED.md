@@ -534,7 +534,20 @@ cast call --rpc-url https://testnet.hashio.io/api 0x0000000000000000000000000000
 cast call --rpc-url https://testnet.hashio.io/api 0x0000000000000000000000000000000000003aD1 'token()(address)'
 ```
 
-The earlier verified outputs are non-empty router bytecode, WHBAR helper `0x0000000000000000000000000000000000003aD1`, and WHBAR token `0x0000000000000000000000000000000000003aD2`. A token pair with current testnet liquidity still has to be selected during the live proof.
+The earlier verified outputs are non-empty router bytecode, WHBAR helper `0x0000000000000000000000000000000000003aD1`, and WHBAR token `0x0000000000000000000000000000000000003aD2`.
+
+Two real testnet WHBAR-USDC-labelled V1 pairs were measured on 4 October 2026. The older pair
+`0x85bb9a90d3eb6f1443cf5cded659387958fafbc3` holds WHBAR and USDC `0.0.2256364`, with reserves
+`143796011142` and `1044635983`. The router quoted `723789` USDC base units for one HBAR while Supra pair 432
+reported `$0.10194`; that difference exceeds the contract's maximum accepted deviation and cannot produce a
+truthful fill.
+
+The selected execution-proof pair is `0x0f99ee30077c267e4b8cca968cf0268d94669fd4`, contract ID
+`0.0.4385356`. It holds WHBAR and `USDC Sirio Test` (`0.0.4385062`, six decimals), with reserves
+`475592749923` and `151204764`. The router returned `[100000000, 31690]` for a one-HBAR input. This is deployed
+testnet liquidity, but its price is stale and economically unrealistic; the live proof uses the maximum
+`10000`-basis-point setting solely to exercise real schedule and swap execution. It is not presented as production
+USDC or a recommended risk configuration.
 
 ## Owner account used by the fork proof
 

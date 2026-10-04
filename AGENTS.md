@@ -25,6 +25,7 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 - `packages/foundry/contracts/ISupraSValueFeed.sol`: Supra push-oracle read interface.
 - `packages/foundry/test/`: offline emulator and protocol tests.
 - `packages/foundry/test/fork/`: real mainnet and testnet fork tests. The Bonzo test records the pinned reserve blocker described in `docs/VERIFIED.md`.
+- `packages/foundry/script/ConfigureAndStartRecurringBuy.s.sol`: owner association, configuration, funding, and first live schedule.
 - `packages/foundry/scripts-js/`: preflight, block pinning, and live-data helpers.
 - `packages/nextjs/app/`: frontend routes.
 - `docs/`: evidence and user documentation.
@@ -55,14 +56,14 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 
 ## Common failures
 
-| Failure | Likely cause | Response |
-| --- | --- | --- |
-| Hashio returns HTTP 400 for a fork | Unsupported Foundry request shape | Use Foundry `v1.5.0` and run the doctor script. |
-| HTS call returns empty data | `cast`, `curl`, or FFI is unavailable | Run the doctor script and inspect its first failed check. |
-| Token balance differs from a pair reserve | Snapshot timestamps differ | Inspect every Mirror Node URL and the pinned block timestamp. |
-| SaucerSwap HBAR swap fails in `mintToken` | Legacy uint64 selector | Extend `ForklabHts` only after a real trace proves the selector. |
-| Schedule target sees the wrong sender | Executor did not prank the payer | Assert `msg.sender` in a target fixture and inspect the schedule payer. |
-| Schedule stops after a successful run | Payer lacks HBAR for a value or fee | Inspect the schedule status and payer balance. |
+| Failure                                   | Likely cause                          | Response                                                                |
+| ----------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
+| Hashio returns HTTP 400 for a fork        | Unsupported Foundry request shape     | Use Foundry `v1.5.0` and run the doctor script.                         |
+| HTS call returns empty data               | `cast`, `curl`, or FFI is unavailable | Run the doctor script and inspect its first failed check.               |
+| Token balance differs from a pair reserve | Snapshot timestamps differ            | Inspect every Mirror Node URL and the pinned block timestamp.           |
+| SaucerSwap HBAR swap fails in `mintToken` | Legacy uint64 selector                | Extend `ForklabHts` only after a real trace proves the selector.        |
+| Schedule target sees the wrong sender     | Executor did not prank the payer      | Assert `msg.sender` in a target fixture and inspect the schedule payer. |
+| Schedule stops after a successful run     | Payer lacks HBAR for a value or fee   | Inspect the schedule status and payer balance.                          |
 
 ## Checks
 

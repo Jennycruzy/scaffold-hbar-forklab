@@ -165,6 +165,24 @@ cast send --rpc-url https://testnet.hashio.io/api --account "$KEYSTORE_NAME" \
 
 The payable JSON-RPC value is in weibars (`1 tinybar = 10^10 weibars`), while `configure` takes tinybars. The live proof must select `TOKEN_OUT` from a pool with measured testnet liquidity before running these commands.
 
+The same setup can be broadcast with one keystore prompt. The script associates the owner with `TOKEN_OUT`,
+configures the vault, explicitly leaves Bonzo disabled, funds it, and creates the first schedule:
+
+```bash
+export RECURRING_BUY_VAULT=0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350
+export RECURRING_BUY_TOKEN_OUT=0x000000000000000000000000000000000042E926
+export RECURRING_BUY_DEVIATION_BPS=10000
+
+cd packages/foundry
+forge script script/ConfigureAndStartRecurringBuy.s.sol \
+  --rpc-url https://testnet.hashio.io/api \
+  --account forklab-testnet --broadcast --slow --legacy
+```
+
+The token above is `USDC Sirio Test` (`0.0.4385062`), not production USDC. Its real V1 pair is useful only for
+testnet schedule execution evidence; the large configured deviation reflects the stale testnet pool price and is
+not a production risk setting.
+
 ## Write your first scheduled-call test
 
 ```solidity

@@ -69,4 +69,6 @@ The earlier pre-Bonzo deployment remains historical evidence and is not the fron
 
 ## Scheduled execution evidence
 
-The current vault has been deployed but has not yet been configured, funded, or started. Schedule IDs and execution transaction IDs will be added only after those transactions succeed on testnet.
+The current vault has been deployed but has not yet been configured, funded, or started. The selected testnet
+execution pair and its measured quote are recorded in `VERIFIED.md`. Schedule IDs and execution transaction IDs
+will be added only after those transactions succeed on testnet.
