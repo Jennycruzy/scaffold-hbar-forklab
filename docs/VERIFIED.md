@@ -475,7 +475,9 @@ TOKEN_NOT_ASSOCIATED_TO_ACCOUNT = 184
 TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT = 194
 ```
 
-The schedule emulator uses the specified service values: success `22`, invalid contract `16`, expiry-not-future `307`, expiry-too-far `306`, busy expiry `370`, invalid schedule `201`, already-deleted `212`, already-executed `213`, invalid signature `7`, insufficient payer balance `10`, and unauthorized delete `157`.
+The schedule emulator uses the specified service values: success `22`, invalid contract `16`, expiry-not-future `307`, expiry-too-far `306`, busy expiry `370`, invalid schedule `201`, already-deleted `212`, already-executed `213`, invalid signature `7`, insufficient payer balance `10`, and unauthorized `157`.
+
+After the testnet edge-case probe of 4 October 2026 (`docs/TESTNET_PROOF.md`), a delete by a contract that did not create the schedule returns `7`, as testnet did, and an unsigned wait-for-expiry schedule settles at expiry as `INVALID_PAYER_SIGNATURE` (`43`) with no fee. `157` remains for an external-runner settlement by a non-payer and a redirect call from a non-forwarder.
 
 ## Supra HBAR/USD push feed
 
@@ -737,7 +739,32 @@ forge test --offline
 Output summary:
 
 ```text
-12 tests passed, 0 failed, 3 skipped (15 total tests)
+Ran 7 test suites in 1.70s (1.83s CPU time): 32 tests passed, 0 failed, 4 skipped (36 total tests)
 ```
 
 The recurring-buy fork tests use Supra pair `432` directly from the pinned Hedera state. No oracle value is hard-coded into the contract or substituted in test storage.
+
+## One-minute judge check (`verify.sh`, 4 October 2026)
+
+Fresh shallow clone of `main` at `24bbbc8` with `verify.sh` copied in, Foundry `1.5.0-v1.5.0`:
+
+```text
+$ git clone -q --recurse-submodules --shallow-submodules --depth 1 https://github.com/Jennycruzy/scaffold-hbar-forklab fresh
+clone: 15.86 s
+$ bash verify.sh
+1/3  Offline emulator suite (no network)
+  PASS Ran 7 test suites in 1.70s (1.83s CPU time): 32 tests passed, 0 failed, 4 skipped (36 total tests)
+2/3  Live-testnet failures, reproduced on mainnet block 100579000
+  PASS 1.5M gas limit cannot fund the 1,409,649-gas re-schedule plus a SaucerSwap purchase
+  PASS an empty vault gets INSUFFICIENT_PAYER_BALANCE and is charged 1,735,120 tinybars
+3/3  Live testnet record for vault 0.0.10861899
+  PASS 6 scheduled runs SUCCESS, then 1 INSUFFICIENT_PAYER_BALANCE, as the emulator predicts
+All Forklab checks passed.
+verify: 8.77 s
+```
+
+The fork step in that run used Foundry's RPC cache. With `--no-storage-caching`, the same two fork tests took
+42.97 s against `https://mainnet.hashio.io/api`. Step 3 reads
+`/api/v1/transactions?account.id=0.0.10861899&transactiontype=CONTRACTCALL&order=desc&limit=25`; the Mirror Node
+returned no rows for the same query with `order=asc`, so the script uses `desc`.
+

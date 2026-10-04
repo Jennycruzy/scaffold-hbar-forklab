@@ -30,8 +30,9 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 - `packages/foundry/test/fork/`: mainnet and testnet fork tests. `BonzoSweepMainnet.t.sol` runs only on the `bonzoMainnet` pin.
 - `packages/foundry/script/Deploy.s.sol`: deploys RecurringBuy and RecurringBuyFactory. `DeployRecurringBuy.s.sol` deploys the vault alone.
 - `packages/foundry/scripts-js/startTestnetVault.sh` (`yarn foundry:testnet:start`): owner association and approval, configuration, gas limit, funding, `start()`, and a watch of the first live runs. It uses `cast send` because `forge script` simulates locally without Hedera system contracts and reverts on `start()`.
+- `verify.sh`: the one-minute judge check (offline suite, two fork reproductions, the testnet Mirror Node record).
 - `packages/foundry/scripts-js/`: preflight, snapshot-checked block pinning, the schedule-limit probe, and the `/lab` Anvil launcher.
-- `packages/nextjs/app/`: `/` (testnet vault status and scheduled runs), `/vault` (create and operate a vault), `/lab` (Anvil fast-forward and runner), plus the template's `/debug` and `/blockexplorer`.
+- `packages/nextjs/app/`: `/` (standalone landing page with the emulator playground; its rules live in `utils/forklab/scheduleModel.ts` and must match `ForklabHss.sol`), `/testnet` (testnet vault status and scheduled runs), `/vault` (create and operate a vault), `/lab` (Anvil fast-forward and runner), plus the template's `/debug` and `/blockexplorer`.
 - `docs/`: evidence and user documentation.
 
 ## Recipes

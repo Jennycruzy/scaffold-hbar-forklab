@@ -1,18 +1,62 @@
 # Forklab
 
-Test against real Hedera locally, including the Hedera Schedule Service. Forklab is a Scaffold-HBAR template for Foundry tests that keep HTS token state, SaucerSwap, Supra, the Mirror Node, and scheduled contract calls in the same workflow.
+**The Hedera Schedule Service, emulated on a fork of real Hedera.** Forklab is a Scaffold-HBAR template for Foundry. Your test schedules a call through `0x16b`, `Forklab.warp(60)` moves time forward, and the call runs as its payer, with its gas limit, Hedera's fees, and expiry order, against the real SaucerSwap pools, Supra feed, and HTS balances at a pinned block. No external system is mocked.
 
-Contracts that schedule their own future calls (HIP-1215) are hard to test: Anvil has no schedule service, and testnet makes you wait for real time. Forklab installs a schedule-service emulator at `0x16b` on a fork of real Hedera state. `Forklab.warp(60)` advances time and executes each due schedule as its payer, with its gas limit, call value, and expiry order, and charges the payer the gas and fees measured on testnet. The contract under test still swaps on the real SaucerSwap pools, reads the real Supra feed, and holds real HTS balances at the pinned block. No external system is mocked.
+Contracts that schedule their own future calls (HIP-1215) are hard to test: Anvil has no schedule service, and testnet makes you wait for real time. The usual workaround is a small mock at `0x16b` that records the call, which the test then runs by hand, with no gas limit, fees, payer balance, or expiry, often next to mocked DEX and token contracts ([why that is not enough](#why-forklab-is-different)).
 
-The template ships an example that uses all of it: `RecurringBuy`, a vault that buys a token on SaucerSwap every interval, guarded by Supra's HBAR/USD price and rescheduled by the network itself. On Hedera testnet, vault `0.0.10861899` completed six consecutive scheduled purchases and then ran out of HBAR exactly as the emulator predicts ([`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md), [Mirror Node results](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10861899/results?order=desc)). An earlier vault's first run failed with `INSUFFICIENT_GAS` on the re-schedule; that failure is why the emulator now charges the measured 1,409,649 gas for each schedule creation, and the fork test `test_testnetFailureGasLimitCannotFundRescheduleAndPurchase` reproduces it.
+## Verify it in about a minute
 
-| You get | Where |
+| | What you check | How |
+| --- | --- | --- |
+| **No install** | The emulator's rules, interactively, and the live testnet vault | Open the [Forklab site](http://99.80.93.71): the playground replays a scheduled vault under a mock and under Forklab; [`/testnet`](http://99.80.93.71/testnet) reads the deployed vault from the Mirror Node |
+| **No install** | Six scheduled purchases on Hedera testnet, then an empty payer | [Mirror Node: vault `0.0.10861899` transactions](https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=0.0.10861899&transactiontype=CONTRACTCALL&order=desc&limit=25) (`"scheduled": true`, six `SUCCESS`, one `INSUFFICIENT_PAYER_BALANCE`) |
+| **One command** (Foundry v1.5.0 only) | The offline suite, both testnet failures reproduced on a mainnet fork, and the testnet record | `git clone --recurse-submodules https://github.com/Jennycruzy/scaffold-hbar-forklab && cd scaffold-hbar-forklab && bash verify.sh` |
+
+`verify.sh` needs no wallet, API key, or `yarn install`. On a fresh clone it printed:
+
+```text
+1/3  Offline emulator suite (no network)
+  PASS Ran 7 test suites in 1.70s (1.83s CPU time): 32 tests passed, 0 failed, 4 skipped (36 total tests)
+2/3  Live-testnet failures, reproduced on mainnet block 100579000
+  PASS 1.5M gas limit cannot fund the 1,409,649-gas re-schedule plus a SaucerSwap purchase
+  PASS an empty vault gets INSUFFICIENT_PAYER_BALANCE and is charged 1,735,120 tinybars
+3/3  Live testnet record for vault 0.0.10861899
+  PASS 6 scheduled runs SUCCESS, then 1 INSUFFICIENT_PAYER_BALANCE, as the emulator predicts
+All Forklab checks passed.
+```
+
+The clone took 16 seconds. The fork step fetches state from Hashio and takes about 45 seconds the first time and 2 seconds after that. No Foundry yet? `curl -L https://foundry.paradigm.xyz | bash && foundryup -i 1.5.0`.
+
+## Why Forklab is different
+
+A schedule-service mock answers "did my contract ask to be scheduled?" Forklab answers "will the scheduled run work on Hedera?" Those are different questions, and live testnet showed us two failures that only the second one catches:
+
+1. **The run that ran out of gas.** Our first testnet vault scheduled its next run with a 1,500,000 gas limit. The oracle read, the SaucerSwap swap and the token transfer all worked, then creating the next schedule failed with `INSUFFICIENT_GAS`: that call alone costs 1,409,649 gas. The whole run reverted, the swap with it, and no next run existed. A recording mock never runs the call, so that test passes. Forklab charges the measured cost, and `test_testnetFailureGasLimitCannotFundRescheduleAndPurchase` reproduces the shortfall on the fork.
+2. **The vault that ran dry.** Testnet vault `0.0.10861899` made six purchases, then could not pay for the seventh schedule. The network still charged it 1,735,120 tinybars. A mock has no payer balance. Forklab checks the payer before every run and charges the same fee (`test_outOfHbarRecordsPayerFailure`, `test_insufficientPayerIsChargedTheMeasuredFee`).
+
+| What the test sees | Typical `0x16b` mock | Forklab |
+| --- | --- | --- |
+| The scheduled call | Recorded; the test calls the target by hand | Executed at expiry by `Forklab.warp`, as the payer |
+| Gas limit and schedule-creation cost | Ignored | Enforced, with the 1,409,649 gas measured on testnet |
+| Payer balance and fees | Ignored | Reserved and charged; an unfunded payer gets `INSUFFICIENT_PAYER_BALANCE` |
+| Expiry order, per-second capacity, delete, signatures | A flag set by hand, if at all | Modelled, with Hedera's response codes |
+| `msg.sender` inside the run | The test contract | The schedule's payer |
+| SaucerSwap, Supra, HTS tokens, Bonzo | Usually mocked too | Real contracts and balances on a pinned mainnet fork |
+
+When the network and the emulator disagree, the emulator changes. `yarn foundry:testnet:probe` asks live Hedera about edge cases; on 4 October 2026 it showed that a non-creator delete returns `7` (the emulator said `157`) and that an unsigned schedule settles at expiry as `INVALID_PAYER_SIGNATURE` (`43`) with no fee. Both are now emulated and tested. The one difference that could not be fixed, an `approve` from an unassociated account, is listed below with its blocker.
+
+What Forklab does not model is listed in [What the emulator does not do](#what-the-emulator-does-not-do), and every number above comes from a testnet transaction recorded in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md).
+
+## What you get
+
+| Piece | Where |
 | --- | --- |
 | HSS emulator: create, sign, delete, capacity, expiry order, payer gas and fees | `contracts/forklab/ForklabHss.sol`, `Forklab.warp` |
 | HTS on a fork, with association and allowances read from the Mirror Node at the pinned block | `contracts/forklab/ForklabHts.sol`, `ForklabMirrorNode.sol` |
 | Fork tests against real SaucerSwap, Supra, and Bonzo Lend | `packages/foundry/test/fork/` |
-| A scheduled-vault example with a factory, deploy script, and one-command testnet start | `RecurringBuy.sol`, `yarn foundry:testnet:start` |
-| `/` live testnet status, `/vault` create and run a vault, `/lab` fast-forward a local fork | `packages/nextjs/app/` |
+| `RecurringBuy`: a vault that buys a token on SaucerSwap every interval, guarded by Supra's HBAR/USD price and rescheduled by the network itself, with a factory, deploy script, and one-command testnet start | `RecurringBuy.sol`, `yarn foundry:testnet:start` |
+| `/` emulator playground, `/testnet` live vault status, `/vault` create and run a vault, `/lab` fast-forward a local fork | `packages/nextjs/app/` |
+| A one-minute verification script | `verify.sh` |
 
 ## Prerequisites
 
@@ -252,6 +296,7 @@ contract FirstScheduledCallTest is Test {
 - Per-second capacity on Hedera is a 1:10 fraction of the live throttle definitions. The emulator's 10 schedules and 15,000,000 gas per second are configurable approximations, not network values.
 - It does not re-price HTS calls. Emulated token calls cost their EVM execution gas, which differs from Hedera's system-contract pricing (an HTS transfer is 15,284 gas on testnet; `associateToken` is 705,424). Measure final gas limits on testnet.
 - `/lab` (Anvil) settles schedules through an external runner, so the emulator's gas fees are not charged there.
+- It does not reject an ERC-20 `approve` from an account that is not associated with the token. Hedera testnet reverts that call; the pinned hedera-forking adapter has no overridable hook on that path, so associate before approving. The probe and the exact blocker are in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md#edge-case-probe-4-october-2026).
 - It does not make an unsupported external protocol work.
 - It does not provide fake routers, pools, tokens, or oracle responses.
 - It does not make Mirror Node data available at a precision the service cannot return.

@@ -24,6 +24,7 @@ contract ForklabHssTest is Test {
     int64 private constant SCHEDULE_ALREADY_DELETED = 212;
     int64 private constant SCHEDULE_ALREADY_EXECUTED = 213;
     int64 private constant INVALID_SIGNATURE = 7;
+    int64 private constant INVALID_PAYER_SIGNATURE = 43;
     int64 private constant INSUFFICIENT_PAYER_BALANCE = 10;
     int64 private constant UNAUTHORIZED = 157;
     uint64 private constant ONE_HBAR_TINYBARS = 100_000_000;
@@ -251,12 +252,13 @@ contract ForklabHssTest is Test {
         (, address second) = HSS.scheduleCall(address(target), expiry, 100_000, 0, callData);
         address stranger = makeAddr("stranger");
         vm.prank(stranger);
+        // Hedera testnet answers a non-creator delete with INVALID_SIGNATURE, not UNAUTHORIZED.
         int64 unauthorizedCode = HSS.deleteSchedule(second);
-        assertEq(unauthorizedCode, UNAUTHORIZED);
+        assertEq(unauthorizedCode, INVALID_SIGNATURE);
 
         vm.prank(stranger);
         int64 unauthorizedRedirectCode = IHederaScheduleService(second).deleteSchedule();
-        assertEq(unauthorizedRedirectCode, UNAUTHORIZED);
+        assertEq(unauthorizedRedirectCode, INVALID_SIGNATURE);
 
         vm.expectEmit(true, false, false, true, address(0x16b));
         emit ScheduleDeleted(second);
@@ -296,10 +298,15 @@ contract ForklabHssTest is Test {
 
         (, address unsignedSchedule) =
             HSS.scheduleCallWithPayer(address(target), address(this), block.timestamp + 1, 200_000, 0, callData);
+        uint256 payerBefore = address(this).balance;
         vm.expectEmit(true, false, false, true, address(0x16b));
         emit ScheduleExpired(unsignedSchedule);
         assertEq(Forklab.warp(1), 1);
-        assertEq(Forklab.schedule(unsignedSchedule).status, INVALID_SIGNATURE);
+        // Hedera testnet runs an unsigned wait-for-expiry schedule at expiry as INVALID_PAYER_SIGNATURE: the call
+        // does not happen and the payer is charged nothing.
+        assertEq(Forklab.schedule(unsignedSchedule).status, INVALID_PAYER_SIGNATURE);
+        assertEq(target.callCount(), 1);
+        assertEq(address(this).balance, payerBefore);
 
         (, address lateSchedule) =
             HSS.executeCallOnPayerSignature(address(target), address(this), block.timestamp + 1, 200_000, 0, callData);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { RainbowKitProvider, darkTheme, lightTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProgressBar as ProgressBar } from "next-nprogress-bar";
@@ -15,6 +16,15 @@ import { BlockieAvatar } from "~~/components/scaffold-hbar";
 import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 
 const ScaffoldHbarApp = ({ children }: { children: React.ReactNode }) => {
+  // The landing page carries its own navigation and footer; every other page uses the app shell.
+  if (usePathname() === "/") {
+    return (
+      <>
+        {children}
+        <Toaster />
+      </>
+    );
+  }
   return (
     <>
       <div className="flex flex-col min-h-screen">

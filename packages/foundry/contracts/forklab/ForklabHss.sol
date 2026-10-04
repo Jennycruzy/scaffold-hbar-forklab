@@ -26,8 +26,12 @@ contract ForklabHss is IHederaScheduleService {
     int64 public constant SCHEDULE_ALREADY_DELETED = 212;
     /// @notice The schedule has already executed.
     int64 public constant SCHEDULE_ALREADY_EXECUTED = 213;
-    /// @notice The payer did not authorize the operation.
+    /// @notice The payer did not authorize the operation. Hedera testnet also returns it when a contract that
+    ///         did not create a schedule tries to delete it (probe of 4 October 2026, docs/TESTNET_PROOF.md).
     int64 public constant INVALID_SIGNATURE = 7;
+    /// @notice A schedule that waits for expiry reached it without its payer's signature. Hedera testnet runs it at
+    ///         expiry with this result and charges no fee (probe of 4 October 2026, docs/TESTNET_PROOF.md).
+    int64 public constant INVALID_PAYER_SIGNATURE = 43;
     /// @notice The payer could not fund the scheduled operation.
     int64 public constant INSUFFICIENT_PAYER_BALANCE = 10;
     /// @notice The caller is not the schedule creator.
@@ -528,7 +532,7 @@ contract ForklabHss is IHederaScheduleService {
     function _expire(address scheduleAddress) private {
         ScheduleState storage state = _schedules[scheduleAddress];
         if (state.terminal) return;
-        state.info.status = INVALID_SIGNATURE;
+        state.info.status = state.executeOnSignature ? INVALID_SIGNATURE : INVALID_PAYER_SIGNATURE;
         state.info.success = false;
         state.info.executedAt = block.timestamp;
         state.terminal = true;
@@ -540,7 +544,7 @@ contract ForklabHss is IHederaScheduleService {
         if (!state.exists) return INVALID_SCHEDULE_ID;
         if (state.deleted) return SCHEDULE_ALREADY_DELETED;
         if (state.info.executedAt != 0 || state.terminal) return SCHEDULE_ALREADY_EXECUTED;
-        if (caller != state.creator) return UNAUTHORIZED;
+        if (caller != state.creator) return INVALID_SIGNATURE;
         state.deleted = true;
         state.terminal = true;
         state.info.status = SUCCESS;

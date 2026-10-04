@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 /* Styrene A Web – Hedera brand font (fallback: Montserrat per brand.hedera.com) */
@@ -150,4 +150,238 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* ---------- Landing page (always dark, independent of the app theme) ---------- */
+
+.landing {
+  --lp-bg: #07090f;
+  --lp-panel: #0d111b;
+  --lp-panel-2: #121827;
+  --lp-line: rgb(255 255 255 / 0.08);
+  --lp-text: #e9ebf2;
+  --lp-muted: #8d93a6;
+  --lp-violet: #8259ef;
+  --lp-azure: #2d84eb;
+  --lp-mint: #34eeb6;
+  --lp-amber: #ffcf72;
+  --lp-coral: #ff8863;
+  background: var(--lp-bg);
+  color: var(--lp-text);
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+.landing ::selection {
+  background: rgb(130 89 239 / 0.45);
+}
+
+.lp-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.lp-panel {
+  background: linear-gradient(180deg, var(--lp-panel-2), var(--lp-panel));
+  border: 1px solid var(--lp-line);
+  border-radius: 1.25rem;
+}
+
+.lp-grid {
+  position: absolute;
+  inset: -2px;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 30%, transparent 75%);
+  animation: lp-grid-drift 24s linear infinite;
+  pointer-events: none;
+}
+
+.lp-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: lp-float 14s ease-in-out infinite;
+}
+
+.lp-gradient-text {
+  background: linear-gradient(100deg, #b9a2ff 0%, #8259ef 35%, #2d84eb 70%, #34eeb6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.7rem 1.25rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.lp-btn:hover {
+  transform: translateY(-1px);
+}
+
+.lp-btn-primary {
+  background: linear-gradient(135deg, #8259ef, #2d6bff);
+  color: white;
+  box-shadow: 0 10px 30px -10px rgb(130 89 239 / 0.8);
+}
+
+.lp-btn-primary:hover {
+  box-shadow: 0 14px 40px -10px rgb(130 89 239 / 0.95);
+}
+
+.lp-btn-ghost {
+  border: 1px solid rgb(255 255 255 / 0.16);
+  color: var(--lp-text);
+  background: rgb(255 255 255 / 0.03);
+}
+
+.lp-btn-ghost:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s ease,
+    transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.lp-reveal.lp-in {
+  opacity: 1;
+  transform: none;
+}
+
+.lp-chip-in {
+  animation: lp-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+.lp-log-in {
+  animation: lp-slide 0.35s ease-out both;
+}
+
+.lp-caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: var(--lp-mint);
+  animation: lp-blink 1s steps(1) infinite;
+}
+
+.lp-orbit {
+  transform-origin: 50% 50%;
+  animation: lp-spin 28s linear infinite;
+}
+
+.lp-orbit-reverse {
+  transform-origin: 50% 50%;
+  animation: lp-spin 40s linear infinite reverse;
+}
+
+.lp-pulse-ring {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: lp-ring 2.6s ease-out infinite;
+}
+
+.lp-range {
+  width: 100%;
+  accent-color: var(--lp-violet);
+}
+
+@keyframes lp-grid-drift {
+  to {
+    background-position:
+      0 56px,
+      56px 0;
+  }
+}
+
+@keyframes lp-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(30px, -20px, 0) scale(1.08);
+  }
+}
+
+@keyframes lp-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-slide {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes lp-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes lp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lp-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-grid,
+  .lp-glow,
+  .lp-orbit,
+  .lp-orbit-reverse,
+  .lp-pulse-ring,
+  .lp-chip-in,
+  .lp-log-in,
+  .lp-caret::after {
+    animation: none;
+  }
+  .lp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
