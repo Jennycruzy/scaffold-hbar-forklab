@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RecurringBuy: {
-      address: "0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350",
+      address: "0xf75d7f902a8ce0e8a21bbf51bd7bf66420eba9a5",
       abi: [
         {
           type: "constructor",
@@ -642,7 +642,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41325250,
+      deployedOnBlock: 41352354,
     },
   },
 } as const;
