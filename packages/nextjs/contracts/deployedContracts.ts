@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RecurringBuy: {
-      address: "0xf75d7f902a8ce0e8a21bbf51bd7bf66420eba9a5",
+      address: "0xdad8de7d8bf7e4e50d03a2e3aa03f57dbd5c782d",
       abi: [
         {
           type: "constructor",
@@ -28,6 +28,19 @@ const deployedContracts = {
         {
           type: "receive",
           stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "DEFAULT_EXECUTION_GAS",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -145,6 +158,19 @@ const deployedContracts = {
           inputs: [],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "executionGas",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "view",
         },
         {
           type: "function",
@@ -278,6 +304,13 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "purchase",
+          inputs: [],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
           name: "router",
           inputs: [],
           outputs: [
@@ -301,6 +334,19 @@ const deployedContracts = {
             },
           ],
           stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "setExecutionGas",
+          inputs: [
+            {
+              name: "gasLimit",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
         },
         {
           type: "function",
@@ -463,6 +509,19 @@ const deployedContracts = {
         },
         {
           type: "event",
+          name: "ExecutionGasConfigured",
+          inputs: [
+            {
+              name: "gasLimit",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
           name: "OwnershipTransferred",
           inputs: [
             {
@@ -476,6 +535,19 @@ const deployedContracts = {
               type: "address",
               indexed: true,
               internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "PurchaseFailed",
+          inputs: [
+            {
+              name: "reason",
+              type: "bytes",
+              indexed: false,
+              internalType: "bytes",
             },
           ],
           anonymous: false,
@@ -596,6 +668,11 @@ const deployedContracts = {
         },
         {
           type: "error",
+          name: "BonzoApprovalFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
           name: "HbarTransferFailed",
           inputs: [],
         },
@@ -642,7 +719,74 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41352354,
+      deployedOnBlock: 41360564,
+    },
+    RecurringBuyFactory: {
+      address: "0xcd390480b9beb229b1da688000f3bd82009503a6",
+      abi: [
+        {
+          type: "function",
+          name: "createVault",
+          inputs: [
+            {
+              name: "supra",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "router",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [
+            {
+              name: "vault",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "event",
+          name: "VaultCreated",
+          inputs: [
+            {
+              name: "owner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "vault",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "supra",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+            {
+              name: "router",
+              type: "address",
+              indexed: false,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "InvalidConfiguration",
+          inputs: [],
+        },
+      ],
+      inheritedFunctions: {},
+      deployedOnBlock: 41360568,
     },
   },
 } as const;

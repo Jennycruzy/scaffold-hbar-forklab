@@ -419,7 +419,11 @@ The failed run's fee, `122,894,282` tinybars, equals `83 × 1,480,654` gas used.
 states that gas is reserved at the limit, users are charged only for the gas used, and unused gas is fully
 refunded, which "eliminates the previous minimum charge requirements". Forklab therefore requires the payer to hold
 `gasLimit × gasPrice` plus any call value, and charges `gasUsed × gasPrice` at execution. `ForklabHss` defaults: creation gas `1,409,649`, gas price `83`; both are
-configurable with `Forklab.setScheduleCreateGas` and `Forklab.setGasPriceTinybars`. HTS gas is not re-priced:
+configurable with `Forklab.setScheduleCreateGas` and `Forklab.setGasPriceTinybars`.
+
+The successful runs of vault `0.0.10861899` (4 October 2026) confirm the model: two scheduled `execute()` calls
+used 1,684,515 and 1,667,415 gas under a 2,500,000 limit and were charged exactly `gasUsed × 82` tinybars
+(138,130,230 and 136,728,030); the price had moved from 83 to 82 tinybars per gas. HTS gas is not re-priced:
 upstream `associateToken` is not virtual and `lib/` must not be edited, so emulated HTS calls cost their EVM
 execution gas.
 

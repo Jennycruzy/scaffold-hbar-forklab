@@ -4,64 +4,62 @@ All values in this document come from Hedera testnet transactions or the public 
 
 ## Current RecurringBuy deployment
 
-- Deployed: 4 October 2026
+Deployed on 4 October 2026 from commit `05ad123` with `yarn foundry:deploy --network hedera_testnet`, which deploys
+both contracts and writes them to `packages/nextjs/contracts/deployedContracts.ts`.
+
+| Contract | Contract ID | EVM address | Deploy transaction | Block | Gas used |
+| --- | --- | --- | --- | --- | --- |
+| `RecurringBuy` | `0.0.10861899` | `0xdad8de7d8bf7e4e50d03a2e3aa03f57dbd5c782d` | `0x237e743778372cc1c20e7b629d0a033913b6f3a45bbf9edae1979929ce833ebc` | `41360564` | `3276665` |
+| `RecurringBuyFactory` | `0.0.10861902` | `0xcd390480b9beb229b1da688000f3bd82009503a6` | `0xe95ed811ad7878f105be197db4153d11c620c545833ea3e45fd405a2574dd415` | `41360568` | `3627805` |
+
+- [RecurringBuy on Hashscan](https://hashscan.io/testnet/contract/0.0.10861899)
+- [Mirror Node contract results](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10861899/results?order=desc)
+- [Mirror Node contract logs](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10861899/results/logs?order=asc)
+
+`executionGas()` reads `2500000` (the new default). Owner `0x5F49ae0CFfe25d23Bf63B2Aa6B8bcFe2160e2AE2`. The
+frontend status endpoint and `/vault` use these checked-in addresses when no environment override is set.
+
+## Successful scheduled execution (4 October 2026)
+
+Owner transactions, all `SUCCESS`:
+
+| Step | Transaction hash | Gas used |
+| --- | --- | --- |
+| Owner `associate()` on `tokenOut` | `0x85bbae2a768af79da86f0a359738b27f8055547683a897e2f8881d70f58d8e88` | `726488` |
+| Owner `approve(vault, 1)` | `0x762167a14afc0e15da16039a49d93a042ccc6c7300063bf3876b6407f6c4055d` | `726996` |
+| `configure(0x…42E926, 1 HBAR, 60 s, 10000 bps, 7200 s)` | `0x405c5255534af85d16d817bada0fce38f3ffb7d9745ffb9c0ae0b760cb48e458` | `138194` |
+| `deposit()` 15 HBAR | `0xc496956104b1c8f06dbe1b124a9cf76081675e451e1dd8b8f937c4d3e37b78aa` | `23419` |
+| `start()` (vault association + first `scheduleCall`) | `0xdc8d8d60398d2af48fd530ed63605912e11afd40fa1277cc89f4c64bbf9b86da` | `2265008` |
+
+Two consecutive HSS-triggered runs then completed. Each scheduled transaction was paid by the vault
+(`0.0.10861899`), called `execute()`, created the next schedule first, and emitted `Bought`:
+
+| Run | Schedule ID | Executed (consensus) | Scheduled transaction | Gas used / limit | Fee (tinybars) | HBAR in | Tokens out | Next schedule |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `0.0.10861986` | `1791146026.000478548` | `0.0.7314364-1791145964-792484791` nonce `53` | `1684515 / 2500000` | `138130230` | `100000000` | `31690` | `0.0.10861999` |
+| 2 | `0.0.10861999` | `1791146085.038525208` | `0.0.7314364-1791145964-792484791` nonce `107` | `1667415 / 2500000` | `136728030` | `100000000` | `31677` | `0.0.10862015` |
+
+- Run 1 contract result: `0x6046b8d16a041752073cf84095eea93bfcf767f9167030d8fed6fcd8bbf3b7e1`
+- Run 2 contract result: `0xcac95a0efb96ce0fe0807b40524840a00dde1925621b9dad53a023f8b8581308`
+- [Schedule 0.0.10861986](https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10861986),
+  [Schedule 0.0.10861999](https://testnet.mirrornode.hedera.com/api/v1/schedules/0.0.10861999)
+
+Each fee equals `gas_used × 82` tinybars. The vault balance fell from 15.0 to 12.6186977 and then 10.2514174 HBAR:
+one HBAR swapped per run plus the gas fee. Neither run emitted `PurchaseFailed`, and the chain kept scheduling after
+run 2 (`0.0.10862015`, `0.0.10862028`). Both runs used about 1.67–1.68M gas, above the old 1,500,000 limit that caused
+the failed run below. The `Bought` oracle amount is `103683` against a pool amount of about `31690`: the test token's
+pool is far from Supra's HBAR price, which is why this run uses the 10000 bps deviation setting described in the
+README.
+
+## Earlier deployments
+
+The vault from the failed first run (details under "Failed first run" below):
+
 - Contract ID: `0.0.10858982`
 - EVM address: `0xf75d7f902a8ce0e8a21bbf51bd7bf66420eba9a5`
 - Ethereum transaction hash: `0xabcca772a9c931768ec3d6451c61412c69fbfe145021be5f873180da2f4ecf2e`
-- Hedera transaction ID: `0.0.7314364-1791128815-216901794`
 - Consensus timestamp: `1791128818.745932959`
-- Block: `41352354`
-- Gas used: `3072180`
-- Charged transaction fee: `254990940` tinybars
-- [Contract on Hashscan](https://hashscan.io/testnet/contract/0.0.10858982)
-- [Deployment transaction on Hashscan](https://hashscan.io/testnet/transaction/1791128818.745932959?tid=0.0.7314364-1791128815-216901794)
-- [Mirror Node contract record](https://testnet.mirrornode.hedera.com/api/v1/contracts/0.0.10858982)
-- [Mirror Node contract result](https://testnet.mirrornode.hedera.com/api/v1/contracts/results/0xabcca772a9c931768ec3d6451c61412c69fbfe145021be5f873180da2f4ecf2e)
-
-Mirror Node result fields:
-
-```json
-{
-  "hash": "0xabcca772a9c931768ec3d6451c61412c69fbfe145021be5f873180da2f4ecf2e",
-  "address": "0xf75d7f902a8ce0e8a21bbf51bd7bf66420eba9a5",
-  "contract_id": "0.0.10858982",
-  "result": "SUCCESS",
-  "block_number": 41352354,
-  "gas_used": 3072180,
-  "timestamp": "1791128818.745932959"
-}
-```
-
-The contract endpoint reports `deleted: false`. `eth_getCode` returned 13,781 bytes of runtime bytecode, and the
-generated frontend ABI contains `configureBonzo`, `bonzoPool`, `sweepToBonzo`, `BonzoSweepConfigured`, and
-`SweptToBonzo`.
-
-The transaction link uses Hashscan's contract-result format: the consensus timestamp is the path and the payer transaction ID is the `tid` query parameter. The public Mirror Node responses independently verify the same deployment.
-
-The production frontend's status endpoint uses this checked-in deployment when no environment override is set.
-The schedule evidence below records that the first live run did not complete; no successful recurring execution
-is claimed here.
-
-On-chain state read on 4 October 2026 with `eth_call` through `https://testnet.hashio.io/api` after the failed run
-(an earlier status snapshot in this file reported `nextSchedule` as zero and has been removed because it did not
-match the chain):
-
-```text
-running            true
-nextSchedule       0x0000000000000000000000000000000000A5B3C6   (schedule 0.0.10859462, already executed)
-nextRunAt          1791131482
-lastRunAt          0
-lastScheduleStatus 22
-tokenOut           0x000000000000000000000000000000000042E926
-amountPerBuy       100000000
-interval           60
-maxDeviationBps    10000
-maxPriceAge        7200
-hbarBalance        377105718
-owner              0x5F49ae0CFfe25d23Bf63B2Aa6B8bcFe2160e2AE2
-```
-
-### Earlier deployments
+- Result: `SUCCESS`
 
 The previous Bonzo-enabled deployment remains historical evidence and is not the frontend's current address:
 
@@ -80,9 +78,9 @@ The earlier pre-Bonzo deployment remains historical evidence:
 - Consensus timestamp: `1791062333.855506104`
 - Result: `SUCCESS`
 
-## Scheduled execution evidence
+## Failed first run (vault 0.0.10858982)
 
-The corrected vault was associated with the selected token, approved for one base unit by the owner, configured for
+That vault was associated with the selected token, approved for one base unit by the owner, configured for
 one-HBAR purchases every 60 seconds, funded with 5 HBAR, and started. The owner transactions were:
 
 - Approval: `0x202b48af35d06988c03ff245bb95d5f7ce220ae064b788735e336b2cb59dae3b`
@@ -138,7 +136,7 @@ last step, its failure reverted the whole run, including the successful swap.
 The execution fee was `122,894,282` tinybars `= 83 × 1,480,654`; the Mirror Node fee schedule reports a
 ContractCall gas price of 83 tinybars at that timestamp (`/api/v1/network/fees?timestamp=1791131482.003931040`).
 
-Changes made in response (local and fork proofs; a new testnet run is still required):
+Changes made in response, proven by the successful run above:
 
 - `RecurringBuy.executionGas` defaults to 2,500,000 and is owner-configurable while stopped.
 - `execute()` schedules the next run first, then runs the purchase in a guarded self-call that keeps 50,000 gas in
