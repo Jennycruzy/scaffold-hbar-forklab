@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     RecurringBuy: {
-      address: "0xed1fc023e00dab72ae2a11e7965eaa1dc42bdfa3",
+      address: "0x3dd43acb0c5b3aac6540b3cbed0ae5c021317350",
       abi: [
         {
           type: "constructor",
@@ -70,6 +70,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "bonzoPool",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "configure",
           inputs: [
             {
@@ -96,6 +109,24 @@ const deployedContracts = {
               name: "priceAgeSeconds",
               type: "uint256",
               internalType: "uint256",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "configureBonzo",
+          inputs: [
+            {
+              name: "pool",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "enabled",
+              type: "bool",
+              internalType: "bool",
             },
           ],
           outputs: [],
@@ -317,6 +348,19 @@ const deployedContracts = {
         },
         {
           type: "function",
+          name: "sweepToBonzo",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "bool",
+              internalType: "bool",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
           name: "tokenOut",
           inputs: [],
           outputs: [
@@ -366,6 +410,25 @@ const deployedContracts = {
           ],
           outputs: [],
           stateMutability: "nonpayable",
+        },
+        {
+          type: "event",
+          name: "BonzoSweepConfigured",
+          inputs: [
+            {
+              name: "pool",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "enabled",
+              type: "bool",
+              indexed: false,
+              internalType: "bool",
+            },
+          ],
+          anonymous: false,
         },
         {
           type: "event",
@@ -507,6 +570,31 @@ const deployedContracts = {
           anonymous: false,
         },
         {
+          type: "event",
+          name: "SweptToBonzo",
+          inputs: [
+            {
+              name: "asset",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "onBehalfOf",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amount",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
           type: "error",
           name: "HbarTransferFailed",
           inputs: [],
@@ -554,7 +642,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 41319847,
+      deployedOnBlock: 41325250,
     },
   },
 } as const;

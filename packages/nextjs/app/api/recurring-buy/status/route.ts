@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { type Address, createPublicClient, http, isAddress } from "viem";
 import { hederaTestnet } from "viem/chains";
+import deployedContracts from "~~/contracts/deployedContracts";
 import { recurringBuyAbi } from "~~/utils/forklab/recurringBuy";
 
 const base = process.env.HEDERA_MIRROR_TESTNET_URL ?? "https://testnet.mirrornode.hedera.com";
 const rpc = process.env.HEDERA_TESTNET_RPC_URL ?? "https://testnet.hashio.io/api";
-const configuredAddress = process.env.RECURRING_BUY_ADDRESS ?? process.env.NEXT_PUBLIC_RECURRING_BUY_ADDRESS;
+const configuredAddress =
+  process.env.RECURRING_BUY_ADDRESS ??
+  process.env.NEXT_PUBLIC_RECURRING_BUY_ADDRESS ??
+  deployedContracts[296]?.RecurringBuy?.address;
 
 function hashscan(consensusTimestamp: string) {
   return `https://hashscan.io/testnet/transaction/${consensusTimestamp}`;

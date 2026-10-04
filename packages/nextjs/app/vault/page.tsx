@@ -7,6 +7,7 @@ import { hederaTestnet } from "viem/chains";
 import { useAccount, useChainId, usePublicClient, useReadContract, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, WalletIcon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-hbar";
+import deployedContracts from "~~/contracts/deployedContracts";
 import { recurringBuyAbi, recurringBuyFactoryAbi } from "~~/utils/forklab/recurringBuy";
 import { hbarToTinybar, hbarToWeibar, tinybarToHbar } from "~~/utils/forklab/units";
 
@@ -39,7 +40,8 @@ const Vault: NextPage = () => {
   const { writeContractAsync, isPending } = useWriteContract();
 
   const factoryAddress = envAddress("NEXT_PUBLIC_RECURRING_BUY_FACTORY_ADDRESS");
-  const configuredVaultAddress = envAddress("NEXT_PUBLIC_RECURRING_BUY_ADDRESS");
+  const configuredVaultAddress =
+    envAddress("NEXT_PUBLIC_RECURRING_BUY_ADDRESS") ?? deployedContracts[296]?.RecurringBuy?.address;
   const [vaultAddress, setVaultAddress] = useState<Address | undefined>(configuredVaultAddress);
   const [supra, setSupra] = useState(String(envAddress("NEXT_PUBLIC_RECURRING_BUY_SUPRA") ?? DEFAULT_SUPRA));
   const [router, setRouter] = useState(String(envAddress("NEXT_PUBLIC_RECURRING_BUY_ROUTER") ?? DEFAULT_ROUTER));
