@@ -12,9 +12,12 @@ const ROOT = resolve(__dirname, "..");
 const LOCAL_RPC = process.env.FORKLAB_LOCAL_RPC_URL || "http://127.0.0.1:8545";
 const REMOTE_RPC =
   process.env.HEDERA_MAINNET_RPC_URL || "https://mainnet.hashio.io/api";
-const MIRROR =
+// HEDERA_MIRROR_MAINNET_URL is an origin, as in the Solidity adapter and the
+// Next.js routes; the forwarder needs the API base path appended.
+const MIRROR = `${(
   process.env.HEDERA_MIRROR_MAINNET_URL ||
-  "https://mainnet-public.mirrornode.hedera.com/api/v1/";
+  "https://mainnet-public.mirrornode.hedera.com"
+).replace(/\/+$/, "")}/api/v1/`;
 const HSS = "0x000000000000000000000000000000000000016b";
 const block = JSON.parse(
   readFileSync(resolve(__dirname, "forkBlocks.json"), "utf8")
@@ -88,12 +91,19 @@ async function main() {
     "function setMaxGasPerSecond(uint256)",
     "function setMaxExpiryFutureSeconds(uint256)",
     "function setMaxExecutionsPerRun(uint256)",
+    "function setScheduleCreateGas(uint256)",
+    "function setGasPriceTinybars(uint256)",
+    "function setStrictDelegatecallRule(bool)",
   ]);
   for (const [name, value] of [
     ["setMaxSchedulesPerSecond", 10],
     ["setMaxGasPerSecond", 15_000_000],
     ["setMaxExpiryFutureSeconds", 5_356_800],
     ["setMaxExecutionsPerRun", 100],
+    // anvil_setCode skips the constructor, so storage defaults are re-applied here.
+    ["setScheduleCreateGas", 1_409_649],
+    ["setGasPriceTinybars", 83],
+    ["setStrictDelegatecallRule", true],
   ]) {
     await rpc("eth_sendTransaction", [
       {

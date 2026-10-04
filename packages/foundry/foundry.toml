@@ -12,6 +12,8 @@ evm_version = "cancun"
 # Suppress style lints for API/modifier names we don't control
 [lint]
 exclude_lints = ["mixed-case-variable", "mixed-case-function"]
+# Vendored upstream code is kept byte-for-byte apart from its import paths.
+ignore = ["test/compat/upstream/**"]
 
 [rpc_endpoints]
 localhost = "http://127.0.0.1:8545"
@@ -31,5 +33,6 @@ tab_width = 4
 quote_style = "double"
 bracket_spacing = true
 int_types = "long"
+ignore = ["test/compat/upstream/**"]
 
 # See more config options https://book.getfoundry.sh/reference/config/overview

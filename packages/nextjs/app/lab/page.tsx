@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import type { NextPage } from "next";
-import { BeakerIcon, ExclamationTriangleIcon, PlayIcon } from "@heroicons/react/24/outline";
+import { BeakerIcon, ExclamationTriangleIcon, PlayIcon, PlusIcon } from "@heroicons/react/24/outline";
 
 const Lab: NextPage = () => {
   const [seconds, setSeconds] = useState("3600");
+  const [delay, setDelay] = useState("60");
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -17,6 +18,34 @@ const Lab: NextPage = () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ seconds: Number(seconds) }),
       });
+      setResult(JSON.stringify(await response.json(), null, 2));
+    } catch (error) {
+      setResult(JSON.stringify({ ok: false, message: String(error) }, null, 2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createSchedule = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/lab/schedule", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ delaySeconds: Number(delay) }),
+      });
+      setResult(JSON.stringify(await response.json(), null, 2));
+    } catch (error) {
+      setResult(JSON.stringify({ ok: false, message: String(error) }, null, 2));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const listPending = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/lab/run-due", { cache: "no-store" });
       setResult(JSON.stringify(await response.json(), null, 2));
     } catch (error) {
       setResult(JSON.stringify({ ok: false, message: String(error) }, null, 2));
@@ -61,7 +90,27 @@ const Lab: NextPage = () => {
         </p>
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-6 lg:grid-cols-3">
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
+          <h2 className="m-0 text-xl font-bold">Create a schedule</h2>
+          <p className="mt-2 text-sm text-base-content/60">
+            Anvil&apos;s first account calls <code>0x16b</code> <code>scheduleCall</code> to send 1 HBAR to the second
+            account after the delay.
+          </p>
+          <label className="form-control mt-5">
+            <span className="label-text mb-1 text-sm font-medium">Delay in seconds</span>
+            <input
+              className="input input-bordered"
+              inputMode="numeric"
+              value={delay}
+              onChange={event => setDelay(event.target.value)}
+            />
+          </label>
+          <button className="btn btn-primary mt-4 gap-2" disabled={busy} onClick={createSchedule}>
+            <PlusIcon className="h-4 w-4" /> Create demo schedule
+          </button>
+        </div>
+
         <div className="rounded-2xl border border-base-300 bg-base-100 p-6 shadow-sm">
           <h2 className="m-0 text-xl font-bold">Fast-forward</h2>
           <p className="mt-2 text-sm text-base-content/60">
@@ -87,9 +136,18 @@ const Lab: NextPage = () => {
             Discovers pending HSS records, impersonates each due payer, executes its stored call and reads the settled
             status.
           </p>
-          <button className="btn btn-primary mt-4 gap-2" disabled={busy} onClick={runDue}>
-            <PlayIcon className="h-4 w-4" /> Run due schedules
-          </button>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button className="btn btn-outline gap-2" disabled={busy} onClick={listPending}>
+              List pending
+            </button>
+            <button className="btn btn-primary gap-2" disabled={busy} onClick={runDue}>
+              <PlayIcon className="h-4 w-4" /> Run due schedules
+            </button>
+          </div>
+          <p className="mt-4 text-xs text-base-content/60">
+            Create a schedule, advance time past its expiry, then run it. Schedules created by your own contracts with{" "}
+            <code>cast send</code> to <code>0x16b</code> run the same way.
+          </p>
         </div>
       </section>
 

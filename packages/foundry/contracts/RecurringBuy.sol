@@ -50,10 +50,20 @@ contract RecurringBuy {
     int64 internal constant TOKEN_ALREADY_ASSOCIATED = 194;
     int64 internal constant EXPIRY_BUSY = 370;
     uint256 internal constant BPS = 10_000;
-    uint256 internal constant EXECUTION_GAS = 1_500_000;
     uint256 internal constant MAX_SCHEDULE_ATTEMPTS = 3;
     uint256 internal constant TINYBARS_PER_HBAR = 100_000_000;
     uint256 internal constant SWAP_DEADLINE_SECONDS = 5 minutes;
+    uint256 internal constant MAX_EXPIRY_FUTURE_SECONDS = 5_356_800;
+    uint256 internal constant MIN_EXECUTION_GAS = 1_500_000;
+    uint256 internal constant MAX_EXECUTION_GAS = 15_000_000;
+    uint256 internal constant PURCHASE_FAILURE_GAS_RESERVE = 50_000;
+
+    /// @notice Default gas limit for each scheduled run.
+    /// @dev Measured on Hedera testnet on 4 October 2026: the HSS `scheduleCall` made
+    ///      by `start()` used 1,409,649 gas, and the Supra read, quote, SaucerSwap
+    ///      swap, and owner transfer used about 258,000 gas before the next schedule.
+    ///      A 1,500,000 limit failed with INSUFFICIENT_GAS; see docs/TESTNET_PROOF.md.
+    uint256 public constant DEFAULT_EXECUTION_GAS = 2_500_000;
 
     /// @notice Supra's HBAR/USD data-pair index.
     uint256 public constant HBAR_USD_PAIR_INDEX = 432;
@@ -112,6 +122,9 @@ contract RecurringBuy {
     /// @notice Whether the vault accepts scheduled executions.
     bool public running;
 
+    /// @notice The gas limit attached to each scheduled run.
+    uint256 public executionGas = DEFAULT_EXECUTION_GAS;
+
     /// @notice Raised when a non-owner calls an owner-only function.
     error NotOwner();
 
@@ -150,6 +163,16 @@ contract RecurringBuy {
 
     /// @notice Emitted after a successful purchase and owner transfer.
     event Bought(uint256 hbarAmount, uint256 tokenAmount, uint256 oracleAmountOut, uint256 poolAmountOut);
+
+    /// @notice Emitted when a due run could not complete its purchase.
+    /// @dev The next run is scheduled before the purchase, so one failure does not stop the vault.
+    event PurchaseFailed(bytes reason);
+
+    /// @notice Emitted when the owner changes the scheduled-run gas limit.
+    event ExecutionGasConfigured(uint256 gasLimit);
+
+    /// @notice Raised when the Bonzo pool approval is rejected.
+    error BonzoApprovalFailed();
 
     /// @notice Emitted when the owner stops the vault.
     event Stopped(int64 responseCode);
@@ -192,7 +215,10 @@ contract RecurringBuy {
     receive() external payable { }
 
     /// @notice Sets the token and risk parameters before the vault is started.
-    /// @param tokenOutAddress The real HTS token purchased by the vault.
+    /// @dev The Supra feed is HBAR/USD, so the oracle check values one tokenOut unit
+    ///      at one US dollar. Use a USD-pegged token; any other token will either skip
+    ///      every run for deviation or, with a very wide deviation, lose slippage protection.
+    /// @param tokenOutAddress The real USD-pegged HTS token purchased by the vault.
     /// @param amountTinybars The HBAR amount for each purchase.
     /// @param intervalSeconds The delay between runs.
     /// @param deviationBps The maximum pool/Supra difference in basis points.
@@ -207,7 +233,7 @@ contract RecurringBuy {
         if (running) revert InvalidConfiguration();
         if (
             tokenOutAddress == address(0) || tokenOutAddress == whbar || amountTinybars == 0 || intervalSeconds == 0
-                || deviationBps > BPS || priceAgeSeconds == 0
+                || intervalSeconds > MAX_EXPIRY_FUTURE_SECONDS || deviationBps > BPS || priceAgeSeconds == 0
         ) {
             revert InvalidConfiguration();
         }
@@ -216,6 +242,14 @@ contract RecurringBuy {
         interval = intervalSeconds;
         maxDeviationBps = deviationBps;
         maxPriceAge = priceAgeSeconds;
+    }
+
+    /// @notice Sets the gas limit attached to future scheduled runs.
+    /// @param gasLimit The limit, between 1,500,000 and 15,000,000.
+    function setExecutionGas(uint256 gasLimit) external onlyOwner {
+        if (running || gasLimit < MIN_EXECUTION_GAS || gasLimit > MAX_EXECUTION_GAS) revert InvalidConfiguration();
+        executionGas = gasLimit;
+        emit ExecutionGasConfigured(gasLimit);
     }
 
     /// @notice Enables or disables depositing bought tokens into Bonzo Lend.
@@ -249,17 +283,37 @@ contract RecurringBuy {
         emit ScheduleCreated(scheduleAddress, nextRunAt);
     }
 
-    /// @notice Executes one purchase; HSS is the only intended caller.
+    /// @notice Executes one due run; HSS is the only intended caller.
+    /// @dev The next run is scheduled first. The purchase then runs in a guarded
+    ///      self-call, so a failed swap, transfer, or Bonzo deposit is reported with
+    ///      PurchaseFailed instead of reverting the run and ending the schedule chain.
     function execute() external {
         if (msg.sender != address(this)) revert OnlyVault();
         if (!running) return;
         lastRunAt = block.timestamp;
+        _scheduleNext();
+
+        // Keep gas back so a purchase that exhausts its share cannot also revert
+        // this frame and undo the schedule created above.
+        uint256 available = gasleft();
+        if (available <= PURCHASE_FAILURE_GAS_RESERVE) {
+            emit PurchaseFailed(bytes("insufficient gas for purchase"));
+            return;
+        }
+        try this.purchase{ gas: available - PURCHASE_FAILURE_GAS_RESERVE }() { }
+        catch (bytes memory reason) {
+            emit PurchaseFailed(reason);
+        }
+    }
+
+    /// @notice Performs one oracle-checked purchase; callable only by the vault itself.
+    function purchase() external {
+        if (msg.sender != address(this)) revert OnlyVault();
 
         ISupraSValueFeed.PriceFeed memory price = supra.getSvalue(HBAR_USD_PAIR_INDEX);
         uint256 publishTime = _supraTimestampSeconds(price.time);
         if (publishTime > block.timestamp || block.timestamp - publishTime > maxPriceAge) {
             emit SkippedStalePrice(publishTime, block.timestamp);
-            _scheduleNext();
             return;
         }
 
@@ -270,7 +324,6 @@ contract RecurringBuy {
         uint256 deviationBps = _deviationBps(oracleAmountOut, poolAmountOut);
         if (deviationBps > maxDeviationBps) {
             emit SkippedDeviation(oracleAmountOut, poolAmountOut, deviationBps);
-            _scheduleNext();
             return;
         }
 
@@ -281,14 +334,13 @@ contract RecurringBuy {
         );
         uint256 amountBought = IERC20RecurringBuy(tokenOut).balanceOf(address(this)) - balanceBefore;
         if (sweepToBonzo) {
-            if (!IERC20RecurringBuy(tokenOut).approve(bonzoPool, amountBought)) revert OwnerTokenAssociationRequired();
+            if (!IERC20RecurringBuy(tokenOut).approve(bonzoPool, amountBought)) revert BonzoApprovalFailed();
             IBonzoLendingPoolRecurringBuy(bonzoPool).deposit(tokenOut, amountBought, owner, 0);
             emit SweptToBonzo(tokenOut, owner, amountBought);
         } else if (!IERC20RecurringBuy(tokenOut).transfer(owner, amountBought)) {
             revert OwnerTokenAssociationRequired();
         }
         emit Bought(amountPerBuy, amountBought, oracleAmountOut, poolAmountOut);
-        _scheduleNext();
     }
 
     /// @notice Deletes the pending schedule and stops future purchases.
@@ -360,9 +412,9 @@ contract RecurringBuy {
     function _createSchedule(uint256 firstCandidate) private returns (int64 responseCode, address scheduleAddress) {
         uint256 candidate = firstCandidate;
         for (uint256 attempt; attempt < MAX_SCHEDULE_ATTEMPTS; attempt++) {
-            if (IHederaScheduleService(HSS_ADDRESS).hasScheduleCapacity(candidate, EXECUTION_GAS)) {
+            if (IHederaScheduleService(HSS_ADDRESS).hasScheduleCapacity(candidate, executionGas)) {
                 return IHederaScheduleService(HSS_ADDRESS)
-                    .scheduleCall(address(this), candidate, EXECUTION_GAS, 0, abi.encodeCall(this.execute, ()));
+                    .scheduleCall(address(this), candidate, executionGas, 0, abi.encodeCall(this.execute, ()));
             }
             candidate += interval;
         }

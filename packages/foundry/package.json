@@ -19,7 +19,8 @@
     "lint": "make lint",
     "lint-staged": "yarn lint",
     "test": "forge test --offline",
-    "test:fork": "node scripts-js/preflight.js --network mainnet --expect-ffi && forge test --fork-url ${HEDERA_MAINNET_RPC_URL:-https://mainnet.hashio.io/api} --chain-id 295 --fork-block-number $(node scripts-js/getForkBlock.js mainnet) --fork-retries ${FORK_RETRIES:-3} --fork-retry-backoff ${FORK_RETRY_BACKOFF:-1000} --ffi",
+    "test:fork": "node scripts-js/preflight.js --network mainnet --expect-ffi && forge test --fork-url ${HEDERA_MAINNET_RPC_URL:-https://mainnet.hashio.io/api} --chain-id 295 --fork-block-number $(node scripts-js/getForkBlock.js mainnet) --fork-retries ${FORK_RETRIES:-3} --fork-retry-backoff ${FORK_RETRY_BACKOFF:-1000} --ffi --no-match-path test/fork/BonzoSweepMainnet.t.sol && yarn test:fork:bonzo",
+    "test:fork:bonzo": "forge test --fork-url ${HEDERA_MAINNET_RPC_URL:-https://mainnet.hashio.io/api} --chain-id 295 --fork-block-number $(node scripts-js/getForkBlock.js bonzoMainnet) --fork-retries ${FORK_RETRIES:-3} --fork-retry-backoff ${FORK_RETRY_BACKOFF:-1000} --ffi --match-path test/fork/BonzoSweepMainnet.t.sol",
     "test:testnet-fork": "node scripts-js/preflight.js --network testnet --expect-ffi && forge test --fork-url ${HEDERA_TESTNET_RPC_URL:-https://testnet.hashio.io/api} --chain-id 296 --fork-block-number $(node scripts-js/getForkBlock.js testnet) --fork-retries ${FORK_RETRIES:-3} --fork-retry-backoff ${FORK_RETRY_BACKOFF:-1000} --ffi",
     "fork:pin": "node scripts-js/pinForkBlock.js mainnet",
     "fork:pin:testnet": "node scripts-js/pinForkBlock.js testnet",
@@ -29,7 +30,7 @@
     "postinstall": "shx cp -n .env.example .env"
   },
   "dependencies": {
-    "@hashgraph/system-contracts-forking": "0.1.1",
+    "@hashgraph/system-contracts-forking": "0.1.2",
     "ansi-colors": "^4.1.3",
     "dotenv": "~16.3.1",
     "envfile": "~6.18.0",

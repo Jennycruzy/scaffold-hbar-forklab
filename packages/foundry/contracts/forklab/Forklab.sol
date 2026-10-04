@@ -78,10 +78,20 @@ library Forklab {
         return ForklabHss(HSS_ADDRESS).runDue();
     }
 
-    /// @notice Marks a payer signature and runs its signature-triggered schedule.
+    /// @notice Signs as the schedule's recorded payer and runs a signature-triggered schedule.
     /// @param scheduleAddress The schedule being signed.
-    function signAsPayer(address scheduleAddress) internal {
-        ForklabHss(HSS_ADDRESS).signAsPayer(scheduleAddress);
+    /// @return responseCode The emulator response code.
+    function signAsPayer(address scheduleAddress) internal returns (int64 responseCode) {
+        return signAs(scheduleAddress, ForklabHss(HSS_ADDRESS).schedule(scheduleAddress).payer);
+    }
+
+    /// @notice Signs a schedule as an arbitrary account; a non-payer receives INVALID_SIGNATURE.
+    /// @param scheduleAddress The schedule being signed.
+    /// @param signer The account presenting the signature.
+    /// @return responseCode The emulator response code.
+    function signAs(address scheduleAddress, address signer) internal returns (int64 responseCode) {
+        VM.prank(signer);
+        return ForklabHss(HSS_ADDRESS).signAsPayer(scheduleAddress);
     }
 
     /// @notice Returns the emulator record for a schedule.
@@ -130,6 +140,18 @@ library Forklab {
     /// @param value The fee charged for each execution attempt.
     function setScheduleFeeTinybars(uint256 value) internal {
         ForklabHss(HSS_ADDRESS).setScheduleFeeTinybars(value);
+    }
+
+    /// @notice Sets the gas charged for each schedule creation (default 1,409,649, measured on testnet).
+    /// @param value The gas cost; 0 disables the charge.
+    function setScheduleCreateGas(uint256 value) internal {
+        ForklabHss(HSS_ADDRESS).setScheduleCreateGas(value);
+    }
+
+    /// @notice Sets the tinybars charged per execution gas unit (default 83).
+    /// @param value Tinybars per gas; 0 disables execution gas fees.
+    function setGasPriceTinybars(uint256 value) internal {
+        ForklabHss(HSS_ADDRESS).setGasPriceTinybars(value);
     }
 
     /// @notice Enables or disables the strict delegatecall contract-key rule.

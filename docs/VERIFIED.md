@@ -204,6 +204,17 @@ openzeppelin v5.6.1     5fd1781b1454fd1ef8e722282f86f9293cacf256
 solidity-bytes-utils    v0.8.4 / f4413cd6137b78403e3a1156bee6aceab46b46fa
 ```
 
+The `/lab` launcher's JSON-RPC forwarder, npm `@hashgraph/system-contracts-forking`, was pinned at `0.1.1` while
+the Solidity library is `v0.1.2`. It is now `0.1.2`, so both halves of the fork come from one release. The npm
+`0.1.2` package's `gitHead` is `9d471d6`, which differs from the library tag `1de85d3` only in the publish workflow:
+
+```text
+$ npm view @hashgraph/system-contracts-forking@0.1.2 gitHead
+9d471d6cccd7f2f816b8c67c5d65b94daa81b530
+$ git -C packages/foundry/lib/hedera-forking diff --stat 1de85d3 9d471d6
+ 3 files changed, 5 insertions(+), 3 deletions(-)    # package.json, package-lock.json, publish workflow
+```
+
 Command:
 
 ```text
@@ -246,7 +257,17 @@ The current mainnet fork snapshot is block `100579000`. Its Mirror Node block ti
 
 The two edge pairs cannot be interpreted as an exact boundary measurement through public Hashio: the HSS capacity query evaluates against advancing consensus time even when `eth_call` carries a historical block tag. Network delay makes `now+1` expire before evaluation and brings both horizon calls back inside the limit. The script records the exact requested calls, but these results do not justify changing Forklab's inclusive `5,356,800`-second emulator boundary. A transaction-level testnet probe with a funded signer is still required to distinguish the horizon by one second.
 
-The current Hiero `SchedulingConfig.java` declares `maxExpirationFutureSeconds = 5356800` at line 25 and `maxExecutionsPerUserTxn = 100` at line 15: https://github.com/hiero-ledger/hiero-consensus-node/blob/main/hedera-node/hedera-config/src/main/java/com/hedera/node/config/data/SchedulingConfig.java#L15-L25. That current file contains no per-second gas setting, so it does not support the earlier claim that 15,000,000 is a scheduling configuration default. The live read probe confirms that an otherwise-empty second accepts an individual 15,000,000-gas request; proving the aggregate per-second ceiling requires creating competing schedules and remains part of the funded testnet work.
+Hiero `SchedulingConfig.java` at commit `c2cd3bd80de7b79655d4719f20ce33313f3e7d4c` (2 October 2026) declares
+`schedulableCapacityFraction = 1:10` (line 14), `maxExecutionsPerUserTxn = 100` (line 16), `maxTxnPerSec = 100`
+(line 17), and `maxExpirationFutureSeconds = 5356800` (line 22):
+https://github.com/hiero-ledger/hiero-consensus-node/blob/c2cd3bd80de7b79655d4719f20ce33313f3e7d4c/hedera-node/hedera-config/src/main/java/com/hedera/node/config/data/SchedulingConfig.java#L14-L22.
+`ScheduleCreateHandler.loadThrottle` (same commit, `hedera-schedule-service-impl`, around line 271) builds each
+expiry second's capacity from the network throttle definitions scaled by `schedulableCapacityFraction`. Per-second
+capacity is therefore a fraction of the live throttle definitions, not a fixed count or gas constant. Forklab's
+`maxSchedulesPerSecond = 10` and `maxGasPerSecond = 15,000,000` are configurable approximations, not values read
+from the network. The horizon (`5,356,800`) and per-run execution cap (`100`) are taken from the file above. The
+live read probe shows that an otherwise-empty testnet second accepts an individual 15,000,000-gas request; the
+aggregate per-second ceiling still needs a funded probe that creates competing schedules.
 
 Command:
 
@@ -333,7 +354,29 @@ curl -sS 'https://mainnet-public.mirrornode.hedera.com/api/v1/tokens/0.0.456858/
 {"timestamp":"1790820958.778317875","balances":[{"account":"0.0.1462797","balance":283737632828,"decimals":6}],"links":{"next":null}}
 ```
 
-The adapter now retains that original fork block even after a test calls `vm.roll` or `vm.warp`, and logs URLs only when `FORKLAB_MIRROR_LOG_URLS=true`. It deliberately does not write its response mapping: HTS invokes these reads through `STATICCALL`, so a cache write causes `StateChangeDuringStaticCall`.
+The adapter retains the original fork block even after a test calls `vm.roll` or `vm.warp`, and logs URLs only when `FORKLAB_MIRROR_LOG_URLS=true`. It does not cache responses in storage: HTS invokes these reads through `STATICCALL`, so a cache write causes `StateChangeDuringStaticCall`.
+
+### Mirror Node balance snapshots
+
+The timestamp bound is necessary but not sufficient. Mirror Node token balances filtered by `timestamp` come from
+periodic balance snapshots, not from every transaction. When a pair swaps after the latest snapshot but before
+the fork block, the snapshot balance is stale and swaps revert with `UniswapV2: K`. The main pin works because the
+USDC/WHBAR pair's last swap preceded the snapshot:
+
+```text
+block       T (block .timestamp.to)   snapshot               pair lastSwap   reserves == snapshot
+100579000   1790821038.006379925      1790820958.778317875   1790820743      yes
+97506000    1783733743.811663359      1783733437.674009428   1783733732      no  (USDC 282269227668 vs 282339850942)
+97505850    1783733443.543410000      1783733437.674009428   1783733228      yes
+```
+
+`scripts-js/pinForkBlock.js` now walks back from the latest block in 50-block steps and pins only a block where
+the reference pair's reserves equal the Mirror Node snapshot (USDC/WHBAR on mainnet, WHBAR/SAUCE on testnet). A
+4 October 2026 dry run selected mainnet `100725308` and testnet `41356987`; the committed pins were left unchanged.
+
+The adapter resolves the fork timestamp once in its constructor, which can write storage, so HTS reads no longer
+fetch the block record per query. It also pauses Foundry gas metering around each Mirror Node fetch: the FFI request
+is emulator plumbing a real HTS read never pays for.
 
 Warm-cache acceptance run on 3 October 2026 (the audit's first run was 4m29s for the then-current 11 fork tests):
 
@@ -357,6 +400,28 @@ The real mainnet tokens that require Forklab's contract-key repair are WHBAR (`0
 The protobuf contract IDs decode to `0.0.1456985` (the WHBAR helper, `0x0000000000000000000000000000000000163B59`) and `0.0.1077627` (`0x000000000000000000000000000000000010717b`). The repair targets the layout declared by hedera-forking v0.1.2, revision `1de85d382e44170f974cb6de2ff211fecbc88b37`: `_tokenInfo` is at `contracts/HtsSystemContract.sol:31`. `test_protobufSupplyKeyRepairMatchesPinnedStorageLayout` reads the calculated supply-contract slot for both real tokens and fails if that dependency layout changes.
 
 The legacy HTS wipe selectors were checked against verbose traces of both real SaucerSwap paths on the pinned mainnet fork: `wipeTokenAccount(address,address,int64)` = `0xefef57f9`, its `uint64` variant = `0x1fc4cf6c`, and `wipeTokenAccountNFT(address,address,int64[])` = `0xf7f38e26`. Neither the HBAR→USDC trace nor the USDC→WHBAR→SAUCE trace contained any of those selectors. Both tests passed (2 passed, 0 failed), so Forklab does not implement an unobserved wipe compatibility shim.
+
+## Hedera gas measured on testnet
+
+From the `start()` and failed-run traces of vault `0.0.10858982` (see `docs/TESTNET_PROOF.md`):
+
+```text
+HSS scheduleCall (0x6f5bfde8) from a contract     1,409,649 gas
+HTS associateToken (0x49146bde)                     705,424 gas
+HTS transfer / mint / burn via token or helper       15,284 gas each
+HTS balanceOf / decimals / allowance / isAssociated   2,607 gas each
+HSS hasScheduleCapacity                               2,607 gas
+ContractCall gas price at 1791131482                     83 tinybars per gas
+```
+
+The failed run's fee, `122,894,282` tinybars, equals `83 × 1,480,654` gas used. Hedera's current gas documentation
+(https://docs.hedera.com/hedera/core-concepts/smart-contracts/gas-and-fees, "Gas Reservation and Unused Gas Refund")
+states that gas is reserved at the limit, users are charged only for the gas used, and unused gas is fully
+refunded, which "eliminates the previous minimum charge requirements". Forklab therefore requires the payer to hold
+`gasLimit × gasPrice` plus any call value, and charges `gasUsed × gasPrice` at execution. `ForklabHss` defaults: creation gas `1,409,649`, gas price `83`; both are
+configurable with `Forklab.setScheduleCreateGas` and `Forklab.setGasPriceTinybars`. HTS gas is not re-priced:
+upstream `associateToken` is not virtual and `lib/` must not be edited, so emulated HTS calls cost their EVM
+execution gas.
 
 ## Selectors and response codes
 
@@ -493,27 +558,81 @@ The pinned price is `$0.104597` per HBAR. Reading the push feed is an on-chain v
 
 ## Bonzo Lend sweep
 
-The official Bonzo contract table lists these lending pools:
+The official Bonzo contract table (https://docs.bonzo.finance/hub/developer/bonzo-lend/lend-contracts) lists:
 
 ```text
-Mainnet LendingPool: 0x236897c518996163E7b313aD21D1C9fCC7BA1afc
-Testnet LendingPool: 0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2
-Mainnet USDC aToken:  0xB7687538c7f4CAD022d5e97CC778d0b46457c5DB
+Mainnet LendingPool:            0x236897c518996163E7b313aD21D1C9fCC7BA1afc  (contract 0.0.7308459)
+Testnet LendingPool:            0xf67DBe9bD1B331cA379c44b5562EAa1CE831EbC2
+Mainnet USDC aToken:            0xB7687538c7f4CAD022d5e97CC778d0b46457c5DB
+Mainnet ProtocolDataProvider:   0x78feDC4D7010E409A0c0c7aF964cc517D3dCde18
+Testnet ProtocolDataProvider:   0x121A2AFFA5f595175E60E01EAeF0deC43Cc3b024
 ```
 
-Source: https://docs.bonzo.finance/hub/developer/bonzo-lend/lend-contracts. `cast code` returned non-empty code for both pool addresses; the mainnet aUSDC contract returned `decimals() = 6`.
+### The mainnet pool is paused
 
-`RecurringBuy` includes the owner-controlled `configureBonzo(pool, enabled)` setting and calls `deposit(asset, amount, owner, 0)` after a real SaucerSwap fill when enabled. The pinned mainnet proof reaches the real pool, and the swap and HTS approval succeed, but Bonzo returns `Error(string)` with the exact message `64` before minting aUSDC:
+An earlier version of this file described the pinned failure as a frozen USDC reserve. That was wrong. Bonzo is an
+Aave v2 fork, and in Aave v2 `Errors.sol` the string `'64'` is `LP_IS_PAUSED` ("Pool is paused"); a frozen reserve
+is `'3'` (`VL_RESERVE_FROZEN`):
 
 ```text
-test_bonzoSweepReportsPinnedFrozenReserve()
-swap output: 103761 USDC base units
-approval: true
-Bonzo LendingPool.deposit(USDC, 103761, owner, 0): revert Error("64")
-aUSDC owner balance delta: 0
+$ curl -s https://raw.githubusercontent.com/aave/protocol-v2/master/contracts/protocol/libraries/helpers/Errors.sol | grep -n "'64'\|'3'"
+30:  string public constant VL_RESERVE_FROZEN = '3'; // 'Action cannot be performed because the reserve is frozen'
+91:  string public constant LP_IS_PAUSED = '64'; // 'Pool is paused'
 ```
 
-The Bonzo data provider reports the USDC reserve as active and frozen at this pinned state. Bonzo's current product documentation also says a deposit requires token association before confirmation. The required successful aUSDC-balance-increase proof cannot be honestly claimed while the live reserve rejects the deposit. The fork test records this exact external blocker and must be rerun as a success proof after Bonzo reopens or provides a supported reserve path.
+`paused()` on the live pools (4 October 2026, viem `readContract` through Hashio):
+
+```text
+mainnet LendingPool paused() @ block 100579000 = true
+mainnet LendingPool paused() @ latest          = true
+testnet LendingPool paused() @ latest          = false
+```
+
+A binary search over historical `paused()` calls places the pause between blocks `97,506,157` (false) and
+`97,506,158` (true, block timestamp `1783734058`).
+
+### Successful sweep proof on pre-pause mainnet state
+
+`test/fork/BonzoSweepMainnet.t.sol` runs on its own pin, block `97,505,850` (`forkBlocks.json` key `bonzoMainnet`,
+run by `yarn foundry:test:fork` through `test:fork:bonzo`). The block was chosen because, at it:
+
+```text
+LendingPool paused()                       false
+USDC reserve (data provider)               active true, frozen false
+Supra pair 432 age                         3,263 s (limit 7,200 s)
+USDC/WHBAR pair reserves                   equal to the Mirror Node balance snapshot at the block timestamp
+owner                                      account 0.0.1764 (ED25519, holds USDC at that timestamp)
+```
+
+The earlier candidate block `97,506,000` failed with `UniswapV2: K` for the snapshot reason described under
+"Mirror Node balance snapshots" below. Result:
+
+```text
+$ forge test --fork-url https://mainnet.hashio.io/api --chain-id 295 --fork-block-number 97505850 --ffi --match-path test/fork/BonzoSweepMainnet.t.sol
+[PASS] test_scheduledBuySweepsRealFillIntoBonzo() (gas: 7760445)
+Suite result: ok. 1 passed; 0 failed; 0 skipped
+```
+
+Trace values: `Bought(hbarAmount 100000000, tokenAmount 70640, oracleAmountOut 70180, poolAmountOut 70640)`, Bonzo
+`Deposit(USDC, owner, …)`, aUSDC `Mint(owner, 70640, index 1080565342502165891540026107)`, and
+`SweptToBonzo(USDC, owner, 70640)`. The owner's USDC balance is unchanged and the vault keeps no USDC.
+
+That test raises the vault's execution gas to 6,000,000. Emulated HTS token calls run as EVM code and cost far
+more gas than Hedera's system-contract pricing (testnet trace: 15,284 gas for an HTS transfer; the emulated
+`approve` in this test costs about 298,000), and at 2,500,000 the aToken `mint` hit `ReentrancySentryOOG`. The
+higher limit isolates the deposit from that emulator overhead and is not a production measurement.
+
+At the main pin, `test_bonzoPausedPoolFailsPurchaseButKeepsSchedule` asserts `paused() == true`, that the run emits
+`PurchaseFailed(Error("64"))`, that no aUSDC is minted, and that the next run is still scheduled.
+
+### Testnet
+
+The testnet pool is not paused. Its reserves (data provider, 4 October 2026) are all active and unfrozen:
+XSAUCE, USDC `0.0.5449` (aToken `0x1348D518996a26a774Eb005b925A655808265D39`), KARATE, HBARX, SAUCE, and WHBAR. The
+only USD reserve, USDC `0.0.5449`, has a SaucerSwap V1 route, but the router quotes `2,233,961` base units for one
+HBAR while Supra prices HBAR near `$0.10`, a deviation above 2,000%. `RecurringBuy` therefore correctly skips
+every run against it, so a truthful testnet RecurringBuy-to-Bonzo sweep is not possible with the current testnet
+liquidity. No testnet sweep is claimed.
 
 ## RecurringBuy deployment defaults
 

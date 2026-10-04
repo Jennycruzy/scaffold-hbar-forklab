@@ -11,15 +11,20 @@ import { Surl } from "hedera-forking/Surl.sol";
 ///      same block-derived upper bound to every endpoint used by HTS state reads.
 contract ForklabMirrorNode is MirrorNode {
     Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-    mapping(string endpoint => string response) private _responses;
-    // forge-lint: disable-next-line(screaming-snake-case-immutable)
-    uint256 private immutable _forkBlockNumber;
     // forge-lint: disable-next-line(screaming-snake-case-immutable)
     bool private immutable _logUrls;
+    string private _forkTimestamp;
 
+    /// @dev Resolves the fork block's consensus timestamp once. HTS reads reach this
+    ///      contract through STATICCALL, so the timestamp is stored here, where writes
+    ///      are allowed, instead of being re-fetched for every query. Offline chains
+    ///      have no Mirror Node and leave it empty.
     constructor() {
-        _forkBlockNumber = block.number;
         _logUrls = VM.envOr("FORKLAB_MIRROR_LOG_URLS", false);
+        if (block.chainid >= 295 && block.chainid <= 298) {
+            _forkTimestamp =
+                VM.parseJsonString(_get(string.concat("blocks/", VM.toString(block.number))), ".timestamp.to");
+        }
     }
 
     /// @notice Fetches token metadata at the fork timestamp.
@@ -143,9 +148,9 @@ contract ForklabMirrorNode is MirrorNode {
         return _get(string.concat("blocks/", VM.toString(blockNumber)));
     }
 
-    function _withTimestamp(string memory endpoint) private returns (string memory) {
-        string memory json = this.fetchBlock(_forkBlockNumber);
-        string memory timestamp = VM.parseJsonString(json, ".timestamp.to");
+    function _withTimestamp(string memory endpoint) private view returns (string memory) {
+        string memory timestamp = _forkTimestamp;
+        require(bytes(timestamp).length != 0, "ForklabMirrorNode: no fork timestamp on this chain");
         bytes memory endpointBytes = bytes(endpoint);
         for (uint256 i; i < endpointBytes.length; i++) {
             if (endpointBytes[i] == 0x3f) return string.concat(endpoint, "&timestamp=lte:", timestamp);
@@ -153,13 +158,16 @@ contract ForklabMirrorNode is MirrorNode {
         return string.concat(endpoint, "?timestamp=lte:", timestamp);
     }
 
+    /// @dev Gas metering is paused for the fetch: the FFI request and response
+    ///      handling are emulator plumbing that a real HTS read never pays for, and
+    ///      counting them would make realistic gas limits fail inside emulated HTS.
     function _get(string memory endpoint) private returns (string memory json) {
-        json = _responses[endpoint];
-        if (bytes(json).length != 0) return json;
+        VM.pauseGasMetering();
         string memory url = string.concat(_mirrorNodeUrl(), endpoint);
         if (_logUrls) console2.log(url);
         (uint256 status, bytes memory result) = Surl.get(url);
         json = string(result);
+        VM.resumeGasMetering();
         require(status == 200 || status == 404, json);
     }
 

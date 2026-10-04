@@ -74,6 +74,7 @@ contract ForklabHssTest is Test {
     }
 
     function test_targetFailureAndOutOfGasAreCaptured() public {
+        Forklab.setGasPriceTinybars(0);
         Forklab.setScheduleFeeTinybars(100);
         uint256 payerBefore = address(this).balance;
         uint256 hssBefore = address(0x16b).balance;
@@ -92,6 +93,93 @@ contract ForklabHssTest is Test {
         (, address gasSchedule) = HSS.scheduleCall(address(target), block.timestamp + 1, 20_000, 0, gasData);
         assertEq(Forklab.warp(1), 1);
         assertFalse(Forklab.schedule(gasSchedule).success);
+    }
+
+    function test_executionChargesGasUsedAtTheHederaPrice() public {
+        uint256 hssBefore = address(0x16b).balance;
+        uint256 payerBefore = address(this).balance;
+        bytes memory revertData = abi.encodeCall(ForklabScheduleTarget.revertWith, (1));
+        (, address reverting) = HSS.scheduleCall(address(target), block.timestamp + 1, 200_000, 50, revertData);
+        assertEq(Forklab.warp(1), 1);
+        assertFalse(Forklab.schedule(reverting).success);
+        // A cheap failing call pays only for the gas it used; the unused reservation and
+        // the 50-tinybar value stay with the payer.
+        uint256 revertFee = payerBefore - address(this).balance;
+        assertGt(revertFee, 0);
+        assertEq(revertFee % 83, 0);
+        assertLt(revertFee, 200_000 * 83);
+        assertEq(address(0x16b).balance, hssBefore + revertFee);
+
+        bytes memory gasData = abi.encodeCall(ForklabScheduleTarget.burnGas, ());
+        (, address exhausted) = HSS.scheduleCall(address(target), block.timestamp + 1, 30_000, 0, gasData);
+        assertEq(Forklab.warp(1), 1);
+        assertFalse(Forklab.schedule(exhausted).success);
+        // A call that exhausts its limit pays for the whole limit.
+        assertEq(address(this).balance, payerBefore - revertFee - 30_000 * 83);
+    }
+
+    function test_payerMustCoverGasAtTheFullLimit() public {
+        address payer = address(new ForklabScheduleTarget());
+        bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (3));
+        vm.prank(payer);
+        (, address scheduleAddress) = HSS.scheduleCall(address(target), block.timestamp + 1, 1_000_000, 0, callData);
+        vm.deal(payer, 1_000_000 * 83 - 1);
+        assertEq(Forklab.warp(1), 1);
+        assertEq(Forklab.schedule(scheduleAddress).status, INSUFFICIENT_PAYER_BALANCE);
+        assertEq(target.callCount(), 0);
+    }
+
+    function test_scheduleCreationChargesMeasuredHederaGas() public {
+        bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (1));
+        uint256 gasBefore = gasleft();
+        HSS.scheduleCall(address(target), block.timestamp + 10, 100_000, 0, callData);
+        assertGe(gasBefore - gasleft(), 1_409_649);
+
+        // Like the real HSS call, a frame that cannot pay the creation gas fails outright.
+        (bool success,) = address(0x16b).call{ gas: 1_000_000 }(
+            abi.encodeCall(
+                IHederaScheduleService.scheduleCall, (address(target), block.timestamp + 10, 100_000, 0, callData)
+            )
+        );
+        assertFalse(success);
+        assertEq(Forklab.pending().length, 1);
+
+        Forklab.setScheduleCreateGas(0);
+        gasBefore = gasleft();
+        HSS.scheduleCall(address(target), block.timestamp + 10, 100_000, 0, callData);
+        assertLt(gasBefore - gasleft(), 1_000_000);
+    }
+
+    function test_dueSchedulesRunInExpiryOrderAcrossSeconds() public {
+        HSS.scheduleCall(address(target), block.timestamp + 100, 200_000, 0, abi.encodeCall(target.record, (100)));
+        HSS.scheduleCall(address(target), block.timestamp + 50, 200_000, 0, abi.encodeCall(target.record, (50)));
+        assertEq(Forklab.warp(200), 2);
+        assertEq(target.markerAt(0), 50);
+        assertEq(target.markerAt(1), 100);
+    }
+
+    function test_onlyTheRecordedPayerCanSign() public {
+        uint256 expiry = block.timestamp + 100;
+        bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (9));
+        (, address scheduleAddress) =
+            HSS.executeCallOnPayerSignature(address(target), address(this), expiry, 200_000, 0, callData);
+        assertEq(Forklab.signAs(scheduleAddress, makeAddr("not-the-payer")), INVALID_SIGNATURE);
+        assertEq(target.callCount(), 0);
+        assertEq(Forklab.signAsPayer(scheduleAddress), SUCCESS);
+        assertEq(target.callCount(), 1);
+    }
+
+    function test_payerSignedBeforeExpiryExecutesAtExpiry() public {
+        uint256 expiry = block.timestamp + 30;
+        bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (21));
+        (, address scheduleAddress) =
+            HSS.scheduleCallWithPayer(address(target), address(this), expiry, 200_000, 0, callData);
+        assertEq(Forklab.signAsPayer(scheduleAddress), SUCCESS);
+        assertEq(target.callCount(), 0);
+        assertEq(Forklab.warp(29), 0);
+        assertEq(Forklab.warp(1), 1);
+        assertEq(target.markerAt(0), 21);
+        assertEq(Forklab.schedule(scheduleAddress).executedAt, expiry);
     }
 
     function test_responseCodesAndCapacityAgree() public {
@@ -147,6 +235,20 @@ contract ForklabHssTest is Test {
         assertEq(executedCode, SCHEDULE_ALREADY_EXECUTED);
         int64 unknownCode = HSS.deleteSchedule(address(uint160(0xf0000011)));
         assertEq(unknownCode, INVALID_SCHEDULE_ID);
+    }
+
+    /// @notice Deleting a schedule does not give its expiry second's capacity back.
+    /// @dev Hiero `WritableScheduleStoreImpl.delete` (commit c2cd3bd8) only marks the schedule
+    ///      deleted; the second's `ScheduledCounts` and throttle usage snapshot are left unchanged.
+    function test_deleteDoesNotReleaseSecondCapacity() public {
+        Forklab.setMaxSchedulesPerSecond(1);
+        uint256 expiry = block.timestamp + 10;
+        (, address scheduleAddress) = HSS.scheduleCall(address(target), expiry, 50, 0, bytes(""));
+        assertFalse(HSS.hasScheduleCapacity(expiry, 50));
+        assertEq(HSS.deleteSchedule(scheduleAddress), SUCCESS);
+        assertFalse(HSS.hasScheduleCapacity(expiry, 50));
+        (int64 busy,) = HSS.scheduleCall(address(target), expiry, 50, 0, bytes(""));
+        assertEq(busy, EXPIRY_BUSY);
     }
 
     function test_signatureExecutionAndExpiry() public {
@@ -244,6 +346,7 @@ contract ForklabHssTest is Test {
 
     function test_contractReschedulesItselfFiveTimesThenStops() public {
         ForklabRecursiveScheduler recursive = new ForklabRecursiveScheduler();
+        vm.deal(address(recursive), 10 * uint256(ONE_HBAR_TINYBARS));
         (int64 code,) = recursive.start();
         assertEq(code, SUCCESS);
         for (uint256 i; i < 5; i++) {
@@ -258,6 +361,7 @@ contract ForklabHssTest is Test {
         ForklabDelegateSchedulerProxy proxy = new ForklabDelegateSchedulerProxy(address(implementation));
         ForklabDelegateSchedulerImplementation scheduler = ForklabDelegateSchedulerImplementation(address(proxy));
         Forklab.markDelegateScheduler(address(proxy), true);
+        vm.deal(address(proxy), uint256(ONE_HBAR_TINYBARS));
 
         bytes memory callData = abi.encodeCall(ForklabScheduleTarget.record, (44));
         (int64 strictCode, address rejectedAtExecution) =
@@ -281,11 +385,23 @@ contract ForklabHssTest is Test {
         Forklab.strictDelegatecallRule(true);
     }
 
-    function testFuzz_scheduleInputsDoNotRevert(uint256 expiryOffsetSeed, uint256 gasLimitSeed) public {
-        uint256 expiryOffset = expiryOffsetSeed % 5_356_802;
-        uint256 gasLimit = gasLimitSeed % 15_000_002;
-        (int64 code,) = HSS.scheduleCall(address(target), block.timestamp + expiryOffset, gasLimit, 0, bytes(""));
+    function testFuzz_scheduleInputsDoNotRevert(uint256 expiryOffsetSeed, uint256 gasLimitSeed, bool nearEdges) public {
+        uint256 expiryOffset;
+        uint256 gasLimit;
+        if (nearEdges) {
+            // Concentrate on the horizon and per-second gas boundaries.
+            expiryOffset = bound(expiryOffsetSeed, 5_356_790, 5_356_810);
+            gasLimit = bound(gasLimitSeed, 14_999_990, 15_000_010);
+        } else {
+            expiryOffset = bound(expiryOffsetSeed, 0, 5_356_810);
+            gasLimit = bound(gasLimitSeed, 0, 15_000_010);
+        }
+        uint256 expiry = block.timestamp + expiryOffset;
+        bool capacity = HSS.hasScheduleCapacity(expiry, gasLimit);
+        (int64 code, address scheduleAddress) = HSS.scheduleCall(address(target), expiry, gasLimit, 0, bytes(""));
         assertTrue(code == SUCCESS || code == EXPIRY_NOT_IN_FUTURE || code == EXPIRY_TOO_FAR || code == EXPIRY_BUSY);
+        assertEq(code == SUCCESS, capacity);
+        assertEq(scheduleAddress != address(0), capacity);
     }
 
     event ScheduleCreated(

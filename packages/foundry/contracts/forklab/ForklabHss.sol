@@ -75,11 +75,17 @@ contract ForklabHss is IHederaScheduleService {
     mapping(address scheduler => bool marked) private _delegateSchedulers;
     address[] private _scheduleOrder;
     uint160 private _nextSchedule;
+    // Horizon and per-run cap: Hiero SchedulingConfig.java (maxExpirationFutureSeconds,
+    // maxExecutionsPerUserTxn). Per-second capacity on the network is a 1:10 fraction of
+    // the live throttle definitions; the count and gas values here are configurable
+    // approximations. See docs/VERIFIED.md, "Live schedule-capacity probe".
     uint256 private _maxSchedulesPerSecond = 10;
     uint256 private _maxGasPerSecond = 15_000_000;
     uint256 private _maxExpiryFutureSeconds = 5_356_800;
     uint256 private _maxExecutionsPerRun = 100;
     uint256 private _scheduleFeeTinybars;
+    uint256 private _scheduleCreateGas = 1_409_649;
+    uint256 private _gasPriceTinybars = 83;
     bool private _strictDelegatecall = true;
     bool private _installDeleteForwarders = true;
 
@@ -103,9 +109,24 @@ contract ForklabHss is IHederaScheduleService {
     /// @notice Emitted when an unsigned schedule reaches expiry.
     event ScheduleExpired(address indexed schedule);
 
+    /// @dev Charges the configured HSS creation gas to the caller's frame. Hedera
+    ///      prices a schedule created from a contract like a system-contract call:
+    ///      on testnet, `scheduleCall` from RecurringBuy.start() used 1,409,649 gas.
+    ///      When the remaining gas cannot cover that cost, the frame consumes all of
+    ///      its gas and fails, as the real call did with INSUFFICIENT_GAS.
+    // forge-lint: disable-start(unwrapped-modifier-logic)
+    modifier chargesCreateGas() {
+        uint256 startGas = _beginCreateCharge();
+        _;
+        _finishCreateCharge(startGas);
+    }
+
+    // forge-lint: disable-end(unwrapped-modifier-logic)
+
     /// @notice Creates a schedule paid by the calling contract.
     function scheduleCall(address to, uint256 expirySecond, uint256 gasLimit, uint64 value, bytes calldata callData)
         external
+        chargesCreateGas
         returns (int64 responseCode, address scheduleAddress)
     {
         return _create(to, msg.sender, expirySecond, gasLimit, value, callData, false, false);
@@ -119,7 +140,7 @@ contract ForklabHss is IHederaScheduleService {
         uint256 gasLimit,
         uint64 value,
         bytes calldata callData
-    ) external returns (int64 responseCode, address scheduleAddress) {
+    ) external chargesCreateGas returns (int64 responseCode, address scheduleAddress) {
         return _create(to, payer, expirySecond, gasLimit, value, callData, true, false);
     }
 
@@ -131,7 +152,7 @@ contract ForklabHss is IHederaScheduleService {
         uint256 gasLimit,
         uint64 value,
         bytes calldata callData
-    ) external returns (int64 responseCode, address scheduleAddress) {
+    ) external chargesCreateGas returns (int64 responseCode, address scheduleAddress) {
         return _create(to, payer, expirySecond, gasLimit, value, callData, true, true);
     }
 
@@ -158,16 +179,22 @@ contract ForklabHss is IHederaScheduleService {
     }
 
     /// @notice Records a payer signature and executes signature-triggered schedules.
+    /// @dev Only the recorded payer may sign; `Forklab.signAsPayer` pranks that payer.
     /// @param scheduleAddress The schedule being signed.
-    function signAsPayer(address scheduleAddress) external {
+    /// @return responseCode SUCCESS, INVALID_SCHEDULE_ID, a terminal-state code, or INVALID_SIGNATURE.
+    function signAsPayer(address scheduleAddress) external returns (int64 responseCode) {
         ScheduleState storage state = _schedules[scheduleAddress];
-        if (!state.exists || state.terminal) return;
+        if (!state.exists) return INVALID_SCHEDULE_ID;
+        if (state.deleted) return SCHEDULE_ALREADY_DELETED;
+        if (state.terminal) return SCHEDULE_ALREADY_EXECUTED;
+        if (msg.sender != state.info.payer) return INVALID_SIGNATURE;
         if (block.timestamp >= state.info.expiry) {
             _expire(scheduleAddress);
-            return;
+            return INVALID_SIGNATURE;
         }
         state.signed = true;
         if (state.executeOnSignature) _execute(scheduleAddress);
+        return SUCCESS;
     }
 
     /// @notice Executes all eligible schedules in creation order.
@@ -249,6 +276,25 @@ contract ForklabHss is IHederaScheduleService {
     /// @param value The fee in tinybars.
     function setScheduleFeeTinybars(uint256 value) external {
         _scheduleFeeTinybars = value;
+    }
+
+    /// @notice Sets the gas charged to the caller for each schedule creation.
+    /// @param value The gas cost; 0 disables the charge.
+    function setScheduleCreateGas(uint256 value) external {
+        _scheduleCreateGas = value;
+    }
+
+    /// @notice Sets the tinybar price per gas charged to payers at execution.
+    /// @param value Tinybars per gas; 0 disables gas fees.
+    function setGasPriceTinybars(uint256 value) external {
+        _gasPriceTinybars = value;
+    }
+
+    /// @notice Returns the gas model used for creation and execution.
+    /// @return createGas Gas charged per schedule creation.
+    /// @return gasPriceTinybars Tinybars charged per execution gas unit.
+    function gasModel() external view returns (uint256 createGas, uint256 gasPriceTinybars) {
+        return (_scheduleCreateGas, _gasPriceTinybars);
     }
 
     /// @notice Sets whether code reached through delegatecall is rejected.
@@ -371,15 +417,20 @@ contract ForklabHss is IHederaScheduleService {
         return capacity.gasUsed <= _maxGasPerSecond - gasLimit;
     }
 
+    /// @dev Returns the due schedule with the earliest expiry second; creation order breaks ties.
     function _nextDue() private view returns (address scheduleAddress) {
+        uint256 bestExpiry = type(uint256).max;
         for (uint256 i; i < _scheduleOrder.length; i++) {
             address candidate = _scheduleOrder[i];
             ScheduleState storage state = _schedules[candidate];
             if (state.terminal) continue;
-            if (state.executeOnSignature && state.signed && block.timestamp < state.info.expiry) return candidate;
-            if (block.timestamp >= state.info.expiry) return candidate;
+            bool due = block.timestamp >= state.info.expiry
+                || (state.executeOnSignature && state.signed && block.timestamp < state.info.expiry);
+            if (due && state.info.expiry < bestExpiry) {
+                bestExpiry = state.info.expiry;
+                scheduleAddress = candidate;
+            }
         }
-        return address(0);
     }
 
     function _execute(address scheduleAddress) private {
@@ -404,25 +455,35 @@ contract ForklabHss is IHederaScheduleService {
             return;
         }
 
-        uint256 payerBalance = state.info.payer.balance;
-        uint256 required = _scheduleFeeTinybars;
-        if (state.info.value > type(uint256).max - required) {
+        // The payer must cover the call value, the flat fee, and the gas reservation at the full limit.
+        uint256 gasPrice = _gasPriceTinybars;
+        if (
+            state.info.gasLimit > type(uint128).max || gasPrice > type(uint128).max
+                || state.info.value > type(uint128).max || _scheduleFeeTinybars > type(uint128).max
+        ) {
             _recordInsufficient(state, scheduleAddress);
             return;
         }
-        required += state.info.value;
-        if (payerBalance < required) {
+        uint256 required = _scheduleFeeTinybars + state.info.value + state.info.gasLimit * gasPrice;
+        if (state.info.payer.balance < required) {
             _recordInsufficient(state, scheduleAddress);
             return;
         }
-
-        uint256 hssBalance = address(this).balance;
-        VM.deal(state.info.payer, payerBalance - _scheduleFeeTinybars);
-        VM.deal(address(this), hssBalance + _scheduleFeeTinybars);
 
         VM.prank(state.info.payer);
+        uint256 gasBefore = gasleft();
         (bool success, bytes memory returnData) =
             state.info.to.call{ gas: state.info.gasLimit, value: state.info.value }(state.info.data);
+        uint256 gasUsed = gasBefore - gasleft();
+        if (gasUsed > state.info.gasLimit) gasUsed = state.info.gasLimit;
+
+        // Hedera reserves gas at the full limit, charges the gas used, and refunds the rest
+        // (docs.hedera.com, smart-contracts/gas-and-fees, "Gas Reservation and Unused Gas Refund").
+        uint256 fee = _scheduleFeeTinybars + gasUsed * gasPrice;
+        uint256 payerAfter = state.info.payer.balance;
+        if (fee > payerAfter) fee = payerAfter;
+        VM.deal(state.info.payer, payerAfter - fee);
+        VM.deal(address(this), address(this).balance + fee);
 
         state.info.success = success;
         state.info.returnData = returnData;
@@ -462,6 +523,28 @@ contract ForklabHss is IHederaScheduleService {
         state.info.status = SUCCESS;
         emit ScheduleDeleted(scheduleAddress);
         return SUCCESS;
+    }
+
+    function _beginCreateCharge() private view returns (uint256 startGas) {
+        startGas = gasleft();
+        if (startGas < _scheduleCreateGas) _consumeAllGas();
+    }
+
+    function _finishCreateCharge(uint256 startGas) private view {
+        uint256 used = startGas - gasleft();
+        if (used < _scheduleCreateGas) _burnGas(_scheduleCreateGas - used);
+    }
+
+    function _burnGas(uint256 amount) private view {
+        if (gasleft() < amount) _consumeAllGas();
+        uint256 target = gasleft() - amount;
+        while (gasleft() > target) { }
+    }
+
+    function _consumeAllGas() private pure {
+        assembly {
+            invalid()
+        }
     }
 
     function _installDeleteForwarder(address scheduleAddress) private {

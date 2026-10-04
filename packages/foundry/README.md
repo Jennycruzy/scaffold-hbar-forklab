@@ -22,7 +22,9 @@ node .yarn/releases/yarn-3.2.3.cjs foundry:test:fork
 node .yarn/releases/yarn-3.2.3.cjs foundry:test:testnet-fork
 ```
 
-The first command is offline and uses chain id `31337`. The fork commands use the pinned block in `scripts-js/forkBlocks.json`, real Hashio state, FFI, and the timestamp-bounded Mirror Node adapter.
+The first command is offline and uses chain id `31337`. The fork commands use the pinned blocks in `scripts-js/forkBlocks.json`, real Hashio state, FFI, and the timestamp-bounded Mirror Node adapter. `foundry:test:fork` runs the main mainnet pin and then the Bonzo sweep suite on the pre-pause `bonzoMainnet` pin (`test:fork:bonzo`). `foundry:test:testnet-fork` runs the WHBAR/SAUCE swap and a RecurringBuy deviation skip on the testnet pin.
+
+`fork:pin` and `fork:pin:testnet` walk back from the latest block and pin only a block whose Mirror Node balance snapshot equals a reference SaucerSwap pair's reserves.
 
 ## Local chain
 
@@ -43,9 +45,10 @@ node .yarn/releases/yarn-3.2.3.cjs foundry:deploy \
   --network hedera_testnet --keystore forklab-testnet
 ```
 
-After selecting and measuring a real testnet pair, optionally set `RECURRING_BUY_VAULT` and `RECURRING_BUY_TOKEN_OUT`,
-then send the token's direct HRC-719 `associate()` transaction and approve the vault for one base unit from that
-account before running `script/ConfigureAndStartRecurringBuy.s.sol`. The script configures the vault, leaves Bonzo
-disabled unless separately configured, funds the vault with 5 HBAR by default, and starts the first schedule.
-Association must be direct because HRC-719 checks `msg.sender`; the allowance is the queryable owner proof.
-The full command and current proof-only token are documented in the repository README.
+This deploys `RecurringBuy` and `RecurringBuyFactory` and updates `packages/nextjs/contracts/deployedContracts.ts`.
+
+To run the vault, send the token's direct HRC-719 `associate()` transaction and approve the vault for one base unit
+from the owner account, then run `script/ConfigureAndStartRecurringBuy.s.sol` with `RECURRING_BUY_VAULT` set. The
+script configures the vault, sets the execution gas limit (2,500,000 by default), leaves Bonzo disabled, funds the
+vault with 15 HBAR by default, and starts the first schedule. Association must be direct because HRC-719 checks
+`msg.sender`; the allowance is the queryable owner proof. The full command is in the repository README.

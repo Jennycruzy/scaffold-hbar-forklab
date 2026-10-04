@@ -1,16 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, Vm } from "forge-std/Test.sol";
 import { ISupraSValueFeed } from "../../contracts/ISupraSValueFeed.sol";
 import { Forklab } from "../../contracts/forklab/Forklab.sol";
 import { IERC20RecurringBuy, ISaucerSwapRouterRecurringBuy, RecurringBuy } from "../../contracts/RecurringBuy.sol";
+import { RecurringBuyFactory } from "../../contracts/RecurringBuyFactory.sol";
+import { IHRC719 } from "hedera-forking/IHRC719.sol";
+
+interface IBonzoPausable {
+    function paused() external view returns (bool);
+}
 
 /// @notice Real mainnet-fork proofs for Supra-backed recurring SaucerSwap buys.
 contract RecurringBuyMainnetTest is Test {
     uint256 private constant TINYBARS_PER_HBAR = 100_000_000;
     uint256 private constant HBAR_USD_PAIR_INDEX = 432;
     int64 private constant INSUFFICIENT_PAYER_BALANCE = 10;
+    uint256 private constant FULL_LIMIT_FEE = 2_500_000 * 83;
 
     address private constant SUPRA = 0xD02cc7a670047b6b012556A88e275c685d25e0c9;
     address private constant ROUTER = 0x00000000000000000000000000000000002E7A5D;
@@ -19,6 +26,10 @@ contract RecurringBuyMainnetTest is Test {
     address private constant BONZO_POOL = 0x236897c518996163E7b313aD21D1C9fCC7BA1afc;
     address private constant A_USDC = 0xB7687538c7f4CAD022d5e97CC778d0b46457c5DB;
     address private constant OWNER = 0xC376f5159300C1b16d2d711cc43AFCaF7433B0EE;
+    /// @dev Mainnet account 0.0.5000 (ED25519). Mirror Node, 4 October 2026:
+    ///      `/accounts/0.0.5000/tokens?token.id=0.0.456858` returns no tokens and
+    ///      `max_automatic_token_associations` is 0, so it holds no USDC relationship.
+    address private constant UNASSOCIATED_ACCOUNT = 0x0000000000000000000000000000000000001388;
 
     ISaucerSwapRouterRecurringBuy private constant ROUTER_CONTRACT = ISaucerSwapRouterRecurringBuy(ROUTER);
     ISupraSValueFeed private constant SUPRA_CONTRACT = ISupraSValueFeed(SUPRA);
@@ -45,7 +56,7 @@ contract RecurringBuyMainnetTest is Test {
     /// @notice Executes three real scheduled purchases and confirms owner proceeds.
     function test_threeScheduledBuysUseRealSupraAndSaucerSwap() external {
         RecurringBuy vault = _newVault(60, 500, 7_200);
-        vm.deal(address(vault), 10 * TINYBARS_PER_HBAR);
+        vm.deal(address(vault), 20 * TINYBARS_PER_HBAR);
         vm.prank(OWNER);
         (, address firstSchedule) = vault.start();
 
@@ -76,7 +87,7 @@ contract RecurringBuyMainnetTest is Test {
     /// @notice A real large swap moves the pool quote outside the Supra tolerance.
     function test_largeRealSwapCausesDeviationSkip() external {
         RecurringBuy vault = _newVault(60, 500, 7_200);
-        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.deal(address(vault), 5 * TINYBARS_PER_HBAR);
         vm.prank(OWNER);
         vault.start();
 
@@ -101,7 +112,7 @@ contract RecurringBuyMainnetTest is Test {
     /// @notice A Supra price older than the configured bound skips without swapping.
     function test_staleSupraPriceSkips() external {
         RecurringBuy vault = _newVault(2, 500, 1);
-        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.deal(address(vault), 5 * TINYBARS_PER_HBAR);
         vm.prank(OWNER);
         vault.start();
         uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
@@ -113,29 +124,38 @@ contract RecurringBuyMainnetTest is Test {
         assertTrue(vault.running());
     }
 
-    /// @notice A vault without HBAR records the real emulator payer-balance failure.
+    /// @notice A vault without HBAR for gas records the payer-balance failure.
     function test_outOfHbarRecordsPayerFailure() external {
         RecurringBuy vault = _newVault(60, 500, 3_600);
-        Forklab.setScheduleFeeTinybars(1);
         vm.prank(OWNER);
         (, address scheduleAddress) = vault.start();
         assertEq(Forklab.warp(60), 1);
-        assertEq(Forklab.schedule(scheduleAddress).status, int64(10));
+        assertEq(Forklab.schedule(scheduleAddress).status, INSUFFICIENT_PAYER_BALANCE);
         assertFalse(Forklab.schedule(scheduleAddress).success);
     }
 
-    /// @notice A funded vault can buy twice and then records payer exhaustion.
+    /// @notice A funded vault buys twice, pays Hedera gas each run, then cannot reserve gas for the next run.
     function test_vaultRunsTwoBuysThenRunsOutOfHbar() external {
         RecurringBuy vault = _newVault(60, 500, 7_200);
-        Forklab.setScheduleFeeTinybars(2);
-        vm.deal(address(vault), 2 * TINYBARS_PER_HBAR + 5);
+        // Each run must reserve gas at the full 2,500,000 limit (2.075 HBAR at 83 tinybars),
+        // then pays the gas it used plus the one-HBAR purchase.
+        vm.deal(address(vault), 6 * TINYBARS_PER_HBAR);
         vm.prank(OWNER);
         vault.start();
 
+        uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        uint256 vaultBefore = address(vault).balance;
         assertEq(Forklab.warp(60), 1);
-        assertEq(address(vault).balance, TINYBARS_PER_HBAR + 3);
+        uint256 afterFirst = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        assertGt(afterFirst, ownerBefore);
+        uint256 firstRunCost = vaultBefore - address(vault).balance;
+        assertGt(firstRunCost, TINYBARS_PER_HBAR);
+        assertEq((firstRunCost - TINYBARS_PER_HBAR) % 83, 0);
+
         assertEq(Forklab.warp(60), 1);
-        assertEq(address(vault).balance, 1);
+        assertGt(IERC20RecurringBuy(USDC).balanceOf(OWNER), afterFirst);
+        assertLt(address(vault).balance, FULL_LIMIT_FEE);
+
         address failingSchedule = vault.nextSchedule();
         vm.expectEmit(true, false, false, false, address(0x16b));
         emit ScheduleExecuted(failingSchedule, false, bytes(""));
@@ -144,31 +164,50 @@ contract RecurringBuyMainnetTest is Test {
         assertFalse(Forklab.schedule(failingSchedule).success);
     }
 
-    /// @notice Records the real Bonzo response when its pinned USDC reserve is frozen.
-    /// @dev The official pool is reached and the swap/approval succeed, but Bonzo returns
-    ///      Error(string) "64" before minting aUSDC. This must become a success proof only
-    ///      after the external reserve is reopened and the test is updated with that receipt.
-    function test_bonzoSweepReportsPinnedFrozenReserve() external {
+    /// @notice The 1,500,000 gas limit that failed on testnet cannot fund both the
+    ///         re-schedule (1,409,649 gas on testnet) and the purchase.
+    function test_testnetFailureGasLimitCannotFundRescheduleAndPurchase() external {
+        RecurringBuy vault = _newVault(60, 500, 7_200);
+        vm.prank(OWNER);
+        vault.setExecutionGas(1_500_000);
+        vm.deal(address(vault), 10 * TINYBARS_PER_HBAR);
+        vm.prank(OWNER);
+        (, address firstSchedule) = vault.start();
+
+        uint256 ownerBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
+        vm.recordLogs();
+        assertEq(Forklab.warp(60), 1);
+        assertTrue(Forklab.schedule(firstSchedule).success);
+        assertTrue(_emitted(address(vault), keccak256("PurchaseFailed(bytes)")));
+        assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerBefore);
+        assertTrue(vault.running());
+        assertNotEq(vault.nextSchedule(), firstSchedule);
+    }
+
+    /// @notice Bonzo's mainnet LendingPool is paused at the pinned block. The sweep fails with
+    ///         Aave v2 error "64" (LP_IS_PAUSED), no aUSDC is minted, and the next run is
+    ///         still scheduled.
+    function test_bonzoPausedPoolFailsPurchaseButKeepsSchedule() external {
+        assertTrue(IBonzoPausable(BONZO_POOL).paused());
         RecurringBuy vault = _newVault(60, 500, 7_200);
         vm.prank(OWNER);
         vault.configureBonzo(BONZO_POOL, true);
-        vm.deal(address(vault), TINYBARS_PER_HBAR);
+        vm.deal(address(vault), 10 * TINYBARS_PER_HBAR);
 
         uint256 aTokenBefore = IERC20RecurringBuy(A_USDC).balanceOf(OWNER);
         uint256 ownerTokenBefore = IERC20RecurringBuy(USDC).balanceOf(OWNER);
-        uint256 quote = _quoteOneHbar();
         vm.prank(OWNER);
-        (, address scheduleAddress) = vault.start();
+        (, address firstSchedule) = vault.start();
 
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit PurchaseFailed(abi.encodeWithSignature("Error(string)", "64"));
         assertEq(Forklab.warp(60), 1);
-        Forklab.ScheduleInfo memory scheduleInfo = Forklab.schedule(scheduleAddress);
-        assertFalse(scheduleInfo.success);
-        assertEq(bytes4(scheduleInfo.returnData), bytes4(0x08c379a0));
-        assertGt(scheduleInfo.returnData.length, 4);
+        assertTrue(Forklab.schedule(firstSchedule).success);
         assertEq(IERC20RecurringBuy(A_USDC).balanceOf(OWNER), aTokenBefore);
         assertEq(IERC20RecurringBuy(USDC).balanceOf(OWNER), ownerTokenBefore);
-        assertTrue(vault.sweepToBonzo());
-        assertEq(quote, 103_761);
+        assertTrue(vault.running());
+        assertNotEq(vault.nextSchedule(), firstSchedule);
+        assertEq(vault.nextRunAt(), block.timestamp + 60);
     }
 
     /// @notice Stopping a vault deletes its pending schedule.
@@ -189,18 +228,44 @@ contract RecurringBuyMainnetTest is Test {
         RecurringBuy vault = _newVault(60, 500, 3_600);
         vm.expectRevert(RecurringBuy.OnlyVault.selector);
         vault.execute();
+        vm.expectRevert(RecurringBuy.OnlyVault.selector);
+        vault.purchase();
     }
 
-    /// @notice A distinct zero-value transfer rejects an owner without the token relationship.
-    function test_ownerWithoutAssociationGetsClearError() external {
-        address unassociatedOwner = makeAddr("unassociated-owner");
-        vm.prank(unassociatedOwner);
+    /// @notice The factory deploys a vault against the real router and hands it to the caller.
+    function test_factoryAssignsVaultToRequestingWallet() external {
+        RecurringBuyFactory factory = new RecurringBuyFactory();
+        vm.prank(OWNER);
+        RecurringBuy vault = RecurringBuy(payable(factory.createVault(SUPRA, ROUTER)));
+        assertEq(vault.owner(), OWNER);
+        assertEq(address(vault.router()), ROUTER);
+        assertEq(vault.whbar(), WHBAR);
+
+        address stranger = makeAddr("stranger");
+        vm.prank(stranger);
+        vm.expectRevert(RecurringBuy.NotOwner.selector);
+        vault.transferOwnership(stranger);
+    }
+
+    /// @notice A real account with no USDC association cannot start a vault.
+    /// @dev HRC-719 `isAssociated()` reads the account's real token relationships from
+    ///      the Mirror Node, so the fork proves this owner is unassociated while the
+    ///      funded OWNER is associated. start() then rejects the missing approval proof.
+    ///      Whether Hedera rejects `approve` from an unassociated account is a live
+    ///      testnet check; the emulated HTS `approve` does not model it.
+    function test_unassociatedOwnerCannotStart() external {
+        vm.prank(UNASSOCIATED_ACCOUNT);
+        assertFalse(IHRC719(USDC).isAssociated());
+        vm.prank(OWNER);
+        assertTrue(IHRC719(USDC).isAssociated());
+
+        vm.prank(UNASSOCIATED_ACCOUNT);
         RecurringBuy vault = new RecurringBuy(SUPRA, ROUTER);
-        vm.prank(unassociatedOwner);
+        vm.prank(UNASSOCIATED_ACCOUNT);
         vault.configure(USDC, TINYBARS_PER_HBAR, 60, 500, 7_200);
         assertTrue(Forklab.associateLocalAccount(USDC, address(vault)));
 
-        vm.prank(unassociatedOwner);
+        vm.prank(UNASSOCIATED_ACCOUNT);
         vm.expectRevert(RecurringBuy.OwnerTokenAssociationRequired.selector);
         vault.start();
     }
@@ -229,4 +294,13 @@ contract RecurringBuyMainnetTest is Test {
     event SkippedDeviation(uint256 oracleAmountOut, uint256 poolAmountOut, uint256 deviationBps);
     event SkippedStalePrice(uint256 publishTime, uint256 currentTime);
     event ScheduleExecuted(address indexed schedule, bool success, bytes returnData);
+    event PurchaseFailed(bytes reason);
+
+    function _emitted(address emitter, bytes32 topic) private view returns (bool) {
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; i++) {
+            if (logs[i].emitter == emitter && logs[i].topics.length != 0 && logs[i].topics[0] == topic) return true;
+        }
+        return false;
+    }
 }

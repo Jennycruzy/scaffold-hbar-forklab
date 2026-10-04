@@ -94,6 +94,6 @@ contract ForklabRecursiveScheduler {
 
     function _scheduleNext() private returns (int64 responseCode, address scheduleAddress) {
         return IHederaScheduleService(address(0x16b))
-            .scheduleCall(address(this), block.timestamp + 1, 1_500_000, 0, abi.encodeCall(this.tick, ()));
+            .scheduleCall(address(this), block.timestamp + 1, 2_000_000, 0, abi.encodeCall(this.tick, ()));
     }
 }

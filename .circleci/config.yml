@@ -94,9 +94,17 @@ jobs:
           command: yarn foundry:test:testnet-fork
 
 workflows:
+  # Pull requests and pushes run the offline suite and both pinned fork suites,
+  # so a fork regression blocks merges. The parameters force a fork-only run.
   quality:
+    unless:
+      or:
+        - << pipeline.parameters.run_mainnet_fork >>
+        - << pipeline.parameters.run_testnet_fork >>
     jobs:
       - quality
+      - mainnet_fork
+      - testnet_fork
 
   mainnet_fork:
     when: << pipeline.parameters.run_mainnet_fork >>

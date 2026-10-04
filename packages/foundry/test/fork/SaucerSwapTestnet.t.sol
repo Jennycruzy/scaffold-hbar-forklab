@@ -52,7 +52,10 @@ contract SaucerSwapTestnetTest is Test {
         vm.prank(owner);
         vault.configure(SAUCE, ONE_HBAR, 60, 10_000, 7_200);
         assertTrue(Forklab.associateLocalAccount(SAUCE, address(vault)));
-        vm.deal(address(vault), 2 * ONE_HBAR);
+        // start() requires the owner's one-unit approval proof.
+        vm.prank(owner);
+        IERC20RecurringBuy(SAUCE).approve(address(vault), 1);
+        vm.deal(address(vault), 5 * ONE_HBAR);
 
         vm.prank(owner);
         (, address firstSchedule) = vault.start();

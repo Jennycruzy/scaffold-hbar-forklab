@@ -3,9 +3,10 @@ pragma solidity ^0.8.19;
 
 import { ScaffoldETHDeploy } from "./DeployHelpers.s.sol";
 import { RecurringBuy } from "../contracts/RecurringBuy.sol";
+import { RecurringBuyFactory } from "../contracts/RecurringBuyFactory.sol";
 
 /**
- * @notice Main deployment script for all contracts
+ * @notice Deploys RecurringBuy and RecurringBuyFactory with verified network integrations
  * @dev Run this when you want to deploy multiple contracts at once
  *
  * Example: yarn deploy # runs this script(without `--file` flag)
@@ -27,5 +28,9 @@ contract DeployScript is ScaffoldETHDeploy {
 
         RecurringBuy recurringBuy = new RecurringBuy(supra, router);
         deployments.push(Deployment({ name: "RecurringBuy", addr: address(recurringBuy) }));
+
+        // The /vault page creates per-wallet vaults through this factory.
+        RecurringBuyFactory factory = new RecurringBuyFactory();
+        deployments.push(Deployment({ name: "RecurringBuyFactory", addr: address(factory) }));
     }
 }

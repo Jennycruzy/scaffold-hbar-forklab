@@ -5,12 +5,14 @@ import Link from "next/link";
 import { HederaPortalFaucet } from "@scaffold-hbar-ui/components";
 import type { NextPage } from "next";
 import { BeakerIcon, ClockIcon, ExclamationTriangleIcon, WalletIcon } from "@heroicons/react/24/outline";
+import { tinybarToHbar } from "~~/utils/forklab/units";
 
 type Run = {
-  hash: string | null;
-  consensusTimestamp: string | null;
-  result: string | null;
-  hashscan: string | null;
+  transactionId: string;
+  consensusTimestamp: string;
+  result: string;
+  feeTinybars: string;
+  hashscan: string;
 };
 
 type RecurringBuyStatus = {
@@ -18,6 +20,9 @@ type RecurringBuyStatus = {
   configured?: boolean;
   address?: string;
   running?: boolean;
+  stalled?: boolean;
+  scheduleId?: string | null;
+  scheduleHashscan?: string | null;
   nextRunAt?: number;
   lastRunAt?: number;
   balanceTinybars?: string;
@@ -54,6 +59,13 @@ const Home: NextPage = () => {
   }, []);
 
   const isOffline = status?.online !== true;
+  const badge = isOffline
+    ? { className: "badge-warning", label: status?.configured ? "Network unavailable" : "Not configured" }
+    : status?.stalled
+      ? { className: "badge-error", label: "Stalled" }
+      : status?.running
+        ? { className: "badge-success", label: "Running" }
+        : { className: "badge-ghost", label: "Stopped" };
 
   return (
     <div className="flex w-full flex-col items-center">
@@ -87,16 +99,18 @@ const Home: NextPage = () => {
               </p>
               <h2 className="m-0 text-2xl font-bold">RecurringBuy live status</h2>
             </div>
-            <span className={`badge ${isOffline ? "badge-warning" : "badge-success"}`}>
-              {isOffline ? "Offline / not configured" : status?.running ? "Running" : "Connected"}
-            </span>
+            <span className={`badge ${badge.className}`}>{badge.label}</span>
           </div>
 
           {isOffline ? (
             <div className="flex items-start gap-3 rounded-xl bg-base-200 p-4 text-sm">
               <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
               <div>
-                <p className="m-0 font-medium">No live vault is configured yet.</p>
+                <p className="m-0 font-medium">
+                  {status?.configured
+                    ? "The testnet vault could not be read right now."
+                    : "No live vault is configured yet."}
+                </p>
                 <p className="m-0 mt-1 text-base-content/65">
                   {status?.message ?? "Set NEXT_PUBLIC_RECURRING_BUY_ADDRESS after the testnet deployment."}
                 </p>
@@ -118,12 +132,23 @@ const Home: NextPage = () => {
                   <p className="m-0 mt-1 text-sm">{formatTime(status?.lastRunAt)}</p>
                 </div>
               </div>
+              {status?.stalled && (
+                <p className="mt-4 rounded-xl bg-error/10 p-3 text-sm">
+                  The last scheduled run passed its expiry without creating the next schedule. See docs/TESTNET_PROOF.md
+                  for the recorded cause; the owner must stop and restart the vault.
+                </p>
+              )}
               <p className="mt-4 text-sm text-base-content/65">
                 Last schedule response: <span className="font-mono">{status?.lastScheduleStatus ?? "—"}</span>. Balance:{" "}
-                {status?.balanceTinybars ?? "—"} tinybars.
+                {status?.balanceTinybars ? `${tinybarToHbar(status.balanceTinybars)} HBAR` : "—"}.{" "}
+                {status?.scheduleHashscan ? (
+                  <a className="link link-primary" href={status.scheduleHashscan} target="_blank" rel="noreferrer">
+                    Schedule {status.scheduleId}
+                  </a>
+                ) : null}
               </p>
               <div className="mt-5">
-                <p className="mb-2 text-sm font-semibold">Recent Mirror Node results</p>
+                <p className="mb-2 text-sm font-semibold">Scheduled runs (Mirror Node)</p>
                 {status?.runs?.length ? (
                   <div className="overflow-x-auto">
                     <table className="table table-sm">
@@ -132,34 +157,32 @@ const Home: NextPage = () => {
                           <th>Transaction</th>
                           <th>Consensus</th>
                           <th>Result</th>
+                          <th>Fee</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {status.runs.map((run, index) => (
-                          <tr key={`${run.hash ?? "run"}-${index}`}>
+                        {status.runs.map(run => (
+                          <tr key={run.consensusTimestamp}>
                             <td>
-                              {run.hashscan ? (
-                                <a
-                                  className="link link-primary font-mono text-xs"
-                                  href={run.hashscan}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  {shortAddress(run.hash ?? undefined)}
-                                </a>
-                              ) : (
-                                "—"
-                              )}
+                              <a
+                                className="link link-primary font-mono text-xs"
+                                href={run.hashscan}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {run.transactionId}
+                              </a>
                             </td>
-                            <td className="text-xs">{run.consensusTimestamp ?? "—"}</td>
-                            <td className="font-mono text-xs">{run.result ?? "—"}</td>
+                            <td className="text-xs">{formatTime(Math.floor(Number(run.consensusTimestamp)))}</td>
+                            <td className="font-mono text-xs">{run.result}</td>
+                            <td className="text-xs">{tinybarToHbar(run.feeTinybars)} HBAR</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <p className="m-0 text-sm text-base-content/60">No Mirror Node results were returned.</p>
+                  <p className="m-0 text-sm text-base-content/60">No scheduled run has executed yet.</p>
                 )}
               </div>
             </>

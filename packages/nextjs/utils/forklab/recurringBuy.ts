@@ -36,6 +36,22 @@ export const recurringBuyAbi = [
   { type: "function", name: "bonzoPool", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
   { type: "function", name: "execute", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "purchase", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "executionGas", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "DEFAULT_EXECUTION_GAS",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "setExecutionGas",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "gasLimit", type: "uint256" }],
+    outputs: [],
+  },
   { type: "function", name: "hbarBalance", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "lastRunAt", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "lastScheduleStatus", stateMutability: "view", inputs: [], outputs: [{ type: "int64" }] },
@@ -91,6 +107,12 @@ export const recurringBuyAbi = [
   },
   {
     type: "event",
+    name: "PurchaseFailed",
+    anonymous: false,
+    inputs: [{ indexed: false, name: "reason", type: "bytes" }],
+  },
+  {
+    type: "event",
     name: "ScheduleFailed",
     anonymous: false,
     inputs: [{ indexed: true, name: "responseCode", type: "int64" }],
@@ -120,3 +142,36 @@ export const recurringBuyFactoryAbi = [
     ],
   },
 ] as const satisfies Abi;
+
+/** HRC-719 association and the ERC-20 calls the owner makes on tokenOut before start(). */
+export const ownerTokenAbi = [
+  { type: "function", name: "associate", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "uint256" }] },
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const satisfies Abi;
+
+/** Hedera ContractCall gas price observed on testnet on 4 October 2026, in tinybars per gas. */
+export const OBSERVED_GAS_PRICE_TINYBARS = 83n;
+
+/** Hedera reserves gas at the full limit before a call and refunds what the call does not use. */
+export function gasReservationTinybars(gasLimit: bigint) {
+  return gasLimit * OBSERVED_GAS_PRICE_TINYBARS;
+}

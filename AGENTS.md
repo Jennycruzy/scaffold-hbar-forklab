@@ -4,9 +4,10 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 
 ## Rules
 
-- Do not fake external systems. Implemented SaucerSwap, Supra, HTS, Mirror Node, HSS, and Bonzo sweep tests use real fork or network state. Bonzo's pinned USDC reserve currently returns `Error("64")`; keep that exact blocker in the proof until a successful live deposit is available.
+- Do not fake external systems. SaucerSwap, Supra, HTS, Mirror Node, HSS, and Bonzo sweep tests use real fork or network state. Bonzo's mainnet pool is paused at the main pin (`Error("64")`, `LP_IS_PAUSED`); the successful sweep proof runs on the pre-pause `bonzoMainnet` pin.
 - Call `Forklab.setUp()` before using HTS or HSS in a fork test.
-- Pin the fork block. Record the block, chain id, RPC command, and result in `docs/VERIFIED.md`.
+- Pin the fork block with `fork:pin`, which only accepts blocks whose Mirror Node balance snapshot matches a reference pair. Record the block, chain id, RPC command, and result in `docs/VERIFIED.md`.
+- Fund every HSS payer for gas: the emulator reserves `gasLimit × 83` tinybars and charges schedule creation 1,409,649 gas, as measured on testnet.
 - Use named tinybar constants. One HBAR is `100_000_000` EVM units.
 - `deal` may fund a test account before an action, but never edit a pool, oracle, or lending reserve to hide a failure.
 - Do not use `vm.mockCall` for an external contract.
@@ -23,11 +24,14 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 - `packages/foundry/contracts/forklab/ForklabMirrorNode.sol`: timestamp-bounded Mirror Node adapter.
 - `packages/foundry/contracts/forklab/IHederaScheduleService.sol`: HIP-1215 ABI.
 - `packages/foundry/contracts/ISupraSValueFeed.sol`: Supra push-oracle read interface.
-- `packages/foundry/test/`: offline emulator and protocol tests.
-- `packages/foundry/test/fork/`: real mainnet and testnet fork tests. The Bonzo test records the pinned reserve blocker described in `docs/VERIFIED.md`.
-- `packages/foundry/script/ConfigureAndStartRecurringBuy.s.sol`: owner association, configuration, funding, and first live schedule.
-- `packages/foundry/scripts-js/`: preflight, block pinning, and live-data helpers.
-- `packages/nextjs/app/`: frontend routes.
+- `packages/foundry/contracts/RecurringBuy.sol` and `RecurringBuyFactory.sol`: the example vault and its per-wallet factory.
+- `packages/foundry/test/ForklabHss.t.sol`: offline emulator tests. `test/FirstScheduledCall.t.sol` is the README sample.
+- `packages/foundry/test/compat/`: the payments-scheduler port that executes through Forklab.
+- `packages/foundry/test/fork/`: mainnet and testnet fork tests. `BonzoSweepMainnet.t.sol` runs only on the `bonzoMainnet` pin.
+- `packages/foundry/script/Deploy.s.sol`: deploys RecurringBuy and RecurringBuyFactory. `DeployRecurringBuy.s.sol` deploys the vault alone.
+- `packages/foundry/script/ConfigureAndStartRecurringBuy.s.sol`: configuration, gas limit, funding, and first live schedule after direct owner association and approval.
+- `packages/foundry/scripts-js/`: preflight, snapshot-checked block pinning, the schedule-limit probe, and the `/lab` Anvil launcher.
+- `packages/nextjs/app/`: `/` (testnet vault status and scheduled runs), `/vault` (create and operate a vault), `/lab` (Anvil fast-forward and runner), plus the template's `/debug` and `/blockexplorer`.
 - `docs/`: evidence and user documentation.
 
 ## Recipes
@@ -60,7 +64,8 @@ Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against
 | ----------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------- |
 | Hashio returns HTTP 400 for a fork        | Unsupported Foundry request shape     | Use Foundry `v1.5.0` and run the doctor script.                         |
 | HTS call returns empty data               | `cast`, `curl`, or FFI is unavailable | Run the doctor script and inspect its first failed check.               |
-| Token balance differs from a pair reserve | Snapshot timestamps differ            | Inspect every Mirror Node URL and the pinned block timestamp.           |
+| Token balance differs from a pair reserve | Mirror balance snapshot predates a swap | Re-pin with `fork:pin`; inspect URLs with `FORKLAB_MIRROR_LOG_URLS=true`. |
+| Scheduled run fails with no target event  | Gas limit below the 1.41M re-schedule  | Raise the gas limit and inspect the schedule's return data.             |
 | SaucerSwap HBAR swap fails in `mintToken` | Legacy uint64 selector                | Extend `ForklabHts` only after a real trace proves the selector.        |
 | Schedule target sees the wrong sender     | Executor did not prank the payer      | Assert `msg.sender` in a target fixture and inspect the schedule payer. |
 | Schedule stops after a successful run     | Payer lacks HBAR for a value or fee   | Inspect the schedule status and payer balance.                          |

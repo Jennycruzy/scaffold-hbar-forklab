@@ -34,8 +34,12 @@
               "command": "{run:foundry:test:fork}"
             },
             {
-              "label": "Deploy and run the testnet example",
+              "label": "Deploy RecurringBuy and its factory to testnet",
               "command": "{run:foundry:deploy}"
+            },
+            {
+              "label": "Associate, approve, configure, fund, and start a vault",
+              "url": "https://github.com/Jennycruzy/scaffold-hbar-forklab#deploy-and-start-a-testnet-vault"
             },
             {
               "label": "Start the frontend",
