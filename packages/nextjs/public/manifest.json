@@ -1,5 +1,19 @@
 {
-  "name": "Scaffold-HBAR 2 DApp",
-  "description": "A DApp built with Scaffold-HBAR",
-  "iconPath": "logo.svg"
+  "name": "Forklab",
+  "short_name": "Forklab",
+  "description": "Hedera Schedule Service emulator on a pinned Hedera fork",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "background_color": "#0b0b16",
+  "theme_color": "#0b0b16"
 }
