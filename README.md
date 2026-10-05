@@ -346,5 +346,6 @@ Hedera's `templates/payments-scheduler` tests its `ScheduledVault` by etching a 
 
 - Verified commands and network values: [`docs/VERIFIED.md`](docs/VERIFIED.md)
 - Testnet deployment and transaction evidence: [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md). The document distinguishes deployment from scheduled-run evidence.
+- AI-assisted development rules: [`AGENTS.md`](AGENTS.md)
 - Scaffold-HBAR and Hedera tooling: [Scaffold HBAR](https://github.com/hedera-dev/scaffold-hbar). `ScheduledVault` and its strategy interfaces are vendored from its `templates/payments-scheduler` branch under the MIT licence.
 - Forking library: [hedera-forking](https://github.com/hashgraph/hedera-forking)
