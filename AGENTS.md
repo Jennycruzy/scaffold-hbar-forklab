@@ -2,6 +2,23 @@
 
 Forklab is a Foundry-only Scaffold-HBAR template. Keep work reproducible against real Hedera state and leave command output in the relevant evidence document.
 
+## AI-assisted workflow
+
+This file is the shared briefing for coding agents. `CLAUDE.md` imports it for Claude Code; Cursor, Codex and other agents read it directly. Agent extras live in `.agents/` (mirrored into `.claude/`):
+
+- `.agents/skills/solidity-security/`: security checklist to apply when writing or changing a contract such as `RecurringBuy.sol`.
+- `.agents/agents/grumpy-carlos-code-reviewer.md`: a strict Scaffold-HBAR code-review persona; run it on every change before it is committed.
+
+The loop an agent should follow when building on Forklab:
+
+1. **Write the scheduled contract and a fork test together.** Start from `test/FirstScheduledCall.t.sol` (offline) or `test/fork/RecurringBuyMainnet.t.sol` (real SaucerSwap, Supra and HTS state). Schedule through `0x16b` exactly as production code would; never call the target function directly to "simulate" a run.
+2. **Let the emulator find the failure.** `Forklab.warp(seconds)` runs every due schedule as its payer with its gas limit and Hedera's fees. Read `Forklab.schedule(address)` for the status, gas used and fee instead of guessing why a run stopped. Typical findings: a gas limit below the 1.41M re-schedule cost, a payer that cannot cover `gasLimit × 83` tinybars, an unassociated account calling `approve`.
+3. **Fix the contract, not the environment.** Raise gas limits, fund payers, associate tokens. Do not loosen an emulator rule to make a test pass; the rules are tied to testnet measurements in `docs/TESTNET_PROOF.md`.
+4. **Prove it on testnet when behaviour matters.** `yarn foundry:testnet:start` deploys and starts a vault; `yarn foundry:testnet:probe` asks live Hedera about edge cases. If testnet and the emulator disagree, change `ForklabHss.sol` (and `utils/forklab/scheduleModel.ts`, which drives the landing-page playground) to match the network, add a test, and record the transaction in `docs/TESTNET_PROOF.md`.
+5. **Run the checks below and `bash verify.sh`** before handing off, and paste the final output of each command.
+
+Good prompts for an agent working here: "Add a fork test that proves the vault stops cleanly when the payer runs out of HBAR", "Port this HSS contract to Forklab and show which run fails on testnet gas", "Add token X to the fork tests and verify its balance against the Mirror Node".
+
 ## Rules
 
 - Do not fake external systems. SaucerSwap, Supra, HTS, Mirror Node, HSS, and Bonzo sweep tests use real fork or network state. Bonzo's mainnet pool is paused at the main pin (`Error("64")`, `LP_IS_PAUSED`); the successful sweep proof runs on the pre-pause `bonzoMainnet` pin.
