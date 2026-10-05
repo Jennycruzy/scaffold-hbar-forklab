@@ -1,6 +1,6 @@
 # Forklab
 
-**▶ [Watch the 3-minute demo](https://scaffold-hbar-forklab.vercel.app/forklab-demo.mp4)** · **Live site: [scaffold-hbar-forklab.vercel.app](https://scaffold-hbar-forklab.vercel.app)** · [emulator playground](https://scaffold-hbar-forklab.vercel.app/#playground) · [live testnet vault](https://scaffold-hbar-forklab.vercel.app/testnet)
+**Live site: [scaffold-hbar-forklab.vercel.app](https://scaffold-hbar-forklab.vercel.app)** · [emulator playground](https://scaffold-hbar-forklab.vercel.app/#playground) · [live testnet vault](https://scaffold-hbar-forklab.vercel.app/testnet)
 
 **The Hedera Schedule Service, emulated on a fork of real Hedera.** Forklab is a Scaffold-HBAR template for Foundry. Your test schedules a call through `0x16b`, `Forklab.warp(60)` moves time forward, and the call runs as its payer, with its gas limit, Hedera's fees, and expiry order, against the real SaucerSwap pools, Supra feed, and HTS balances at a pinned block. No external system is mocked.
 
