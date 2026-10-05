@@ -1127,7 +1127,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@forklab/foundry@workspace:packages/foundry"
   dependencies:
-    "@hashgraph/system-contracts-forking": 0.1.1
+    "@hashgraph/system-contracts-forking": 0.1.2
     ansi-colors: ^4.1.3
     dotenv: ~16.3.1
     envfile: ~6.18.0
@@ -1227,14 +1227,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hashgraph/system-contracts-forking@npm:0.1.1":
-  version: 0.1.1
-  resolution: "@hashgraph/system-contracts-forking@npm:0.1.1"
+"@hashgraph/system-contracts-forking@npm:0.1.2":
+  version: 0.1.2
+  resolution: "@hashgraph/system-contracts-forking@npm:0.1.2"
   dependencies:
     ethers: ^6.1.0
   peerDependencies:
     hardhat: ^2.0.0
-  checksum: c66277d2ee1dac84e61aa8af7d5840fae3e6755739bff5e543e009d333fc3aec51e09bf7c65325c2418c5947ef26562f488476ae6722d814421278598e26c62b
+  checksum: 8613221b2eb154c3ee733465dd713c5e45893e4cd94fd155cbb63f7ed2413ace0abafa54f873afcfcd7d275dab5a0d34148d091bade7d1d9536ead1bf746a731
   languageName: node
   linkType: hard
 
