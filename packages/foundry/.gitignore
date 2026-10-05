@@ -16,5 +16,3 @@ localhost.json
 # Generated deployment artifact (produced by scripts-js/generateTsAbis.js)
 nextjs.args/contracts/deployedContracts.ts
 
-# Local Cursor IDE config
-.cursor/

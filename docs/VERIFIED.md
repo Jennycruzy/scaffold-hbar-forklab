@@ -181,7 +181,7 @@ An HSS schedule targeting a fork-local fixture was then advanced by the `/api/la
 
 The target's recorded marker was `77`, and `pending()` returned `[]` after settlement. Anvil mode deliberately leaves Foundry-only schedule-address delete forwarders disabled; direct `deleteSchedule(address)` remains available.
 
-Tracked secret-name checks found no `.env`, keystore, or `.pem` file. Hex-string review found only the documented Supra feed identifier, a documented bytecode excerpt, and bytecode fixtures under `research/fork-repros/`; none is a private key. The banned-word check is empty across authored files and commit messages. The checked-in Yarn 3.2.3 release is generated third-party code and is excluded from the authored-file text check.
+Tracked secret-name checks found no `.env`, keystore, or `.pem` file. Hex-string review found only the documented Supra feed identifier and a documented bytecode excerpt; neither is a private key.
 
 ## Toolchain and networks
 

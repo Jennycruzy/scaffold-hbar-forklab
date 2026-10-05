@@ -1,6 +1,6 @@
 # Forklab
 
-**Live site: [scaffold-hbar-forklab.vercel.app](https://scaffold-hbar-forklab.vercel.app)** · [emulator playground](https://scaffold-hbar-forklab.vercel.app/#playground) · [live testnet vault](https://scaffold-hbar-forklab.vercel.app/testnet)
+**▶ [Demo video (2:40)](https://youtu.be/vUI-vqRyoB8)** · **Live site: [scaffold-hbar-forklab.vercel.app](https://scaffold-hbar-forklab.vercel.app)** · [emulator playground](https://scaffold-hbar-forklab.vercel.app/#playground) · [live testnet vault](https://scaffold-hbar-forklab.vercel.app/testnet)
 
 **The Hedera Schedule Service, emulated on a fork of real Hedera.** Forklab is a Scaffold-HBAR template for Foundry. Your test schedules a call through `0x16b`, `Forklab.warp(60)` moves time forward, and the call runs as its payer, with its gas limit, Hedera's fees, and expiry order, against the real SaucerSwap pools, Supra feed, and HTS balances at a pinned block. No external system is mocked.
 
@@ -346,6 +346,5 @@ Hedera's `templates/payments-scheduler` tests its `ScheduledVault` by etching a 
 
 - Verified commands and network values: [`docs/VERIFIED.md`](docs/VERIFIED.md)
 - Testnet deployment and transaction evidence: [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md). The document distinguishes deployment from scheduled-run evidence.
-- Agent extension rules: [`AGENTS.md`](AGENTS.md)
 - Scaffold-HBAR and Hedera tooling: [Scaffold HBAR](https://github.com/hedera-dev/scaffold-hbar). `ScheduledVault` and its strategy interfaces are vendored from its `templates/payments-scheduler` branch under the MIT licence.
 - Forking library: [hedera-forking](https://github.com/hashgraph/hedera-forking)
