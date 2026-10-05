@@ -1,5 +1,7 @@
 # Forklab
 
+**Live site: [scaffold-hbar-forklab.vercel.app](https://scaffold-hbar-forklab.vercel.app)** · [emulator playground](https://scaffold-hbar-forklab.vercel.app/#playground) · [live testnet vault](https://scaffold-hbar-forklab.vercel.app/testnet)
+
 **The Hedera Schedule Service, emulated on a fork of real Hedera.** Forklab is a Scaffold-HBAR template for Foundry. Your test schedules a call through `0x16b`, `Forklab.warp(60)` moves time forward, and the call runs as its payer, with its gas limit, Hedera's fees, and expiry order, against the real SaucerSwap pools, Supra feed, and HTS balances at a pinned block. No external system is mocked.
 
 Contracts that schedule their own future calls (HIP-1215) are hard to test: Anvil has no schedule service, and testnet makes you wait for real time. The usual workaround is a small mock at `0x16b` that records the call, which the test then runs by hand, with no gas limit, fees, payer balance, or expiry, often next to mocked DEX and token contracts ([why that is not enough](#why-forklab-is-different)).
@@ -8,7 +10,7 @@ Contracts that schedule their own future calls (HIP-1215) are hard to test: Anvi
 
 | | What you check | How |
 | --- | --- | --- |
-| **No install** | The emulator's rules, interactively, and the live testnet vault | Open the [Forklab site](http://99.80.93.71): the playground replays a scheduled vault under a mock and under Forklab; [`/testnet`](http://99.80.93.71/testnet) reads the deployed vault from the Mirror Node |
+| **No install** | The emulator's rules, interactively, and the live testnet vault | Open the [Forklab site](https://scaffold-hbar-forklab.vercel.app): the playground replays a scheduled vault under a mock and under Forklab; [`/testnet`](https://scaffold-hbar-forklab.vercel.app/testnet) reads the deployed vault from the Mirror Node |
 | **No install** | Six scheduled purchases on Hedera testnet, then an empty payer | [Mirror Node: vault `0.0.10861899` transactions](https://testnet.mirrornode.hedera.com/api/v1/transactions?account.id=0.0.10861899&transactiontype=CONTRACTCALL&order=desc&limit=25) (`"scheduled": true`, six `SUCCESS`, one `INSUFFICIENT_PAYER_BALANCE`) |
 | **One command** (Foundry v1.5.0 only) | The offline suite, both testnet failures reproduced on a mainnet fork, and the testnet record | `git clone --recurse-submodules https://github.com/Jennycruzy/scaffold-hbar-forklab && cd scaffold-hbar-forklab && bash verify.sh` |
 
