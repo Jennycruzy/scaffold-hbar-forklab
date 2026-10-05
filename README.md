@@ -313,6 +313,7 @@ contract FirstScheduledCallTest is Test {
 | HTS reads return empty bytes                             | Put `cast` on `PATH`; the Mirror Node adapter uses it through FFI.                                               |
 | FFI cannot run                                           | Install `bash` and `curl`, enable `ffi` in `foundry.toml`, and pass `--ffi`.                                     |
 | A token call reports an unsupported selector             | Call `Forklab.useTokens` for every token used by the test.                                                       |
+| `approve` reverts with no data                           | The caller is not associated with the token, which Hedera also rejects. Call `Forklab.associateLocalAccount(token, account)` first (on Hedera, `associateToken`). |
 | A swap reverts with `K`                                  | Re-pin with `fork:pin`, which checks the Mirror Node balance snapshot against pair reserves; never edit pair storage. |
 | A scheduled run fails with `INSUFFICIENT_GAS`            | Raise the gas limit: creating the next schedule alone costs about 1.41M gas on Hedera.                           |
 | A scheduled call fails after delegatecall                | Schedule from the concrete contract frame, not a proxy or delegatecall library.                                  |
