@@ -185,7 +185,7 @@ questions the emulator answers. Each probe stores the raw response code instead 
 | --- | --- | --- | --- | --- |
 | B deletes schedule `0.0.10863484`, created by A | `deleteOther` `0xcfd1ea15706a6178068eb2a4fa94bf45dc455fcf149d2312085e0b3a2f54b867` | `7` `INVALID_SIGNATURE`; the schedule was not deleted and ran at expiry (`SUCCESS`, `1791154830.058580755`) | `157` `UNAUTHORIZED` | `7` |
 | A schedules `ping()` with the owner as payer and never gets the owner's signature (schedule `0.0.10863486`) | `scheduleWithPayer` `0xee7b217e7704b6eaec37398ec8c0fc5ca8a6e3d423cd676db3b4316ec8b85224` (create code `22`) | ran at expiry `1791154840.012166208` as `INVALID_PAYER_SIGNATURE` (`43`), `charged_tx_fee` `0`; `pings()` stayed `1` | status `7`, no fee | status `43`, no fee |
-| A, not associated with token `0.0.4385062` (`0x…42E926`), calls `approve(owner, 1)` on it | `approveToken` `0x9d562ff2760a379b29a7f2d05ac4e1f26bf94f1571ea82eb9b4320960810403b` | the call reverted with empty data; `allowance(A, owner)` stayed `0` | succeeds and sets the allowance | unchanged; see the blocker below |
+| A, not associated with token `0.0.4385062` (`0x…42E926`), calls `approve(owner, 1)` on it | `approveToken` `0x9d562ff2760a379b29a7f2d05ac4e1f26bf94f1571ea82eb9b4320960810403b` | the call reverted with empty data; `allowance(A, owner)` stayed `0` | succeeds and sets the allowance | reverts with empty data; allowance stays `0` |
 
 Read back after the run:
 
@@ -203,9 +203,12 @@ $ curl -s 'https://testnet.mirrornode.hedera.com/api/v1/transactions?timestamp=1
 delete answer to the schedule-address redirect, and keeps `7` for an unsigned `executeCallOnPayerSignature` schedule,
 which the probe did not exercise.
 
-**Unassociated approve: recorded blocker.** The ERC-20 `approve` that reaches a token runs through the pinned
-hedera-forking release's `fallback` → `HtsSystemContractJson.__redirectForToken` → `_allowanceSlot`. None of those is
-`virtual` in that release, so `ForklabHts` cannot add the association check without editing `packages/foundry/lib/`,
-which is recreated from the lockfile. A mainnet-fork check on 4 October 2026 (a locally deployed contract calling
-USDC `approve`) returned `true` and set the allowance to `1`. Until the upstream adapter exposes a hook, a contract
-under test must associate before it approves; Forklab will not catch a missing association on `approve`.
+**Unassociated approve: fixed with a Forklab token proxy.** The ERC-20 `approve` reaching a token runs through the
+pinned hedera-forking release's `fallback` → `HtsSystemContractJson.__redirectForToken` → `_allowanceSlot`, and none of
+those is `virtual`, so the check cannot live in `ForklabHts`. Instead, `Forklab.useTokens` etches
+`contracts/forklab/ForklabTokenProxy.sol` at each declared token. It forwards to `0x167` exactly like the upstream
+HIP-719 proxy, but before an `approve(address,uint256)` it asks the token for `isAssociated()` on the caller's behalf
+and reverts with empty data when the answer is false or the lookup fails. `test/fork/TokenAssociationMainnet.t.sol`
+checks four cases on the pinned mainnet fork: an unassociated local contract, an unassociated Mirror Node account, an
+associated Mirror Node account, and a contract associated with `Forklab.associateLocalAccount`. Tokens a test does not
+pass to `useTokens` keep the upstream proxy and still allow the call.

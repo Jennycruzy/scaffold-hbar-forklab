@@ -5,6 +5,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { ForklabHss } from "./ForklabHss.sol";
 import { ForklabHts } from "./ForklabHts.sol";
 import { ForklabMirrorNode } from "./ForklabMirrorNode.sol";
+import { ForklabTokenProxy } from "./ForklabTokenProxy.sol";
 import { MirrorNode } from "hedera-forking/MirrorNode.sol";
 import { HTS_ADDRESS } from "hedera-forking/HtsSystemContract.sol";
 
@@ -41,11 +42,15 @@ library Forklab {
         VM.allowCheatcodes(HSS_ADDRESS);
     }
 
-    /// @notice Re-etches HIP-719 code over declared EIP-7702-style HTS tokens.
+    /// @notice Installs Forklab's HIP-719 proxy at each declared HTS token.
+    /// @dev The proxy forwards to `0x167` like the upstream one, replaces any EIP-7702-style code marker, and
+    ///      rejects `approve` from an account that is not associated with the token, as Hedera testnet does.
+    ///      Tokens a test does not declare keep the upstream proxy and its permissive `approve`.
     /// @param tokens The token addresses used by a test.
     function useTokens(address[] memory tokens) internal {
+        bytes memory proxy = type(ForklabTokenProxy).runtimeCode;
         for (uint256 i; i < tokens.length; i++) {
-            ForklabHts(HTS_ADDRESS).ensureHip719Proxy(tokens[i]);
+            VM.etch(tokens[i], proxy);
             ForklabHts(HTS_ADDRESS).repairProtobufSupplyKey(tokens[i]);
         }
     }

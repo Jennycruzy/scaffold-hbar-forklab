@@ -120,6 +120,9 @@ contract ForklabHts is HtsSystemContractJson {
         VM.store(HTS_ADDRESS, accountSlot, bytes32((uint256(1) << 248) | uint256(accountId)));
         bytes32 slot = bytes32(abi.encodePacked(IHRC719.isAssociated.selector, uint192(0), accountId));
         VM.store(token, slot, bytes32(uint256(1)));
+        // Mark the slot as fetched in the adapter's scratch space, or the next isAssociated lookup re-reads the
+        // Mirror Node, which has no record of a local account, and overwrites the association with false.
+        VM.store(address(bytes20(keccak256(abi.encode(token)))), slot, bytes32(uint256(1)));
         return true;
     }
 

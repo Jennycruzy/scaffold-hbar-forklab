@@ -94,6 +94,8 @@ contract SaucerSwapMainnetTest is Test {
     /// @notice Confirms the real USDC-WHBAR-SAUCE route matches its quote.
     function test_usdcToWhbarToSauceMatchesRouterQuote() external {
         address trader = makeAddr("token-trader");
+        // Hedera rejects approve from an unassociated account, and Forklab's token proxy does too.
+        Forklab.associateLocalAccount(USDC, trader);
         deal(USDC, trader, USDC_INPUT);
         address[] memory path = new address[](3);
         path[0] = USDC;

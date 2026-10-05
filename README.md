@@ -43,7 +43,7 @@ A schedule-service mock answers "did my contract ask to be scheduled?" Forklab a
 | `msg.sender` inside the run | The test contract | The schedule's payer |
 | SaucerSwap, Supra, HTS tokens, Bonzo | Usually mocked too | Real contracts and balances on a pinned mainnet fork |
 
-When the network and the emulator disagree, the emulator changes. `yarn foundry:testnet:probe` asks live Hedera about edge cases; on 4 October 2026 it showed that a non-creator delete returns `7` (the emulator said `157`) and that an unsigned schedule settles at expiry as `INVALID_PAYER_SIGNATURE` (`43`) with no fee. Both are now emulated and tested. The one difference that could not be fixed, an `approve` from an unassociated account, is listed below with its blocker.
+When the network and the emulator disagree, the emulator changes. `yarn foundry:testnet:probe` asks live Hedera about edge cases; on 4 October 2026 it showed that a non-creator delete returns `7` (the emulator said `157`) and that an unsigned schedule settles at expiry as `INVALID_PAYER_SIGNATURE` (`43`) with no fee. It also showed that an `approve` from an account not associated with the token reverts with empty data. All three are now emulated and tested.
 
 What Forklab does not model is listed in [What the emulator does not do](#what-the-emulator-does-not-do), and every number above comes from a testnet transaction recorded in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md).
 
@@ -275,7 +275,7 @@ contract FirstScheduledCallTest is Test {
 
 ## Hedera differences you will hit
 
-- HTS token addresses can expose EIP-7702-style delegation code. `Forklab.useTokens` restores the HIP-719 proxy only for affected tokens.
+- HTS token addresses can expose EIP-7702-style delegation code. `Forklab.useTokens` installs Forklab's HIP-719 proxy at every declared token, which also replaces that code.
 - SaucerSwap V1 still uses legacy HTS mint and burn selectors. `ForklabHts` translates those selectors while retaining the supply-key checks.
 - Mirror Node responses are timestamp-bounded to the pinned fork block, but token balances come from periodic Mirror Node snapshots. If a pair swapped after the last snapshot before the pin, its reserves and emulated balances disagree and swaps revert with `K`. `fork:pin` only accepts blocks where they agree.
 - Creating a schedule from a contract is expensive on Hedera: `scheduleCall` used 1,409,649 gas on testnet. `ForklabHss` charges that gas (`Forklab.setScheduleCreateGas`) and fails the calling frame when it cannot be paid, as the real call did with `INSUFFICIENT_GAS`.
@@ -288,7 +288,7 @@ contract FirstScheduledCallTest is Test {
 - `RecurringBuy` schedules its next run before buying and runs the purchase in a guarded self-call, so a failed swap, transfer, or Bonzo deposit emits `PurchaseFailed` without ending the schedule chain.
 - `maxDeviationBps` is currently used for both pool/oracle deviation and swap slippage; configure it for the stricter of those two limits.
 - `withdraw` is disabled while a vault is running so the owner cannot starve already-planned purchases.
-- Until the live testnet expiry probe is complete, an unsigned schedule that expires records status `7` as an explicit emulator choice, not a verified network claim.
+- An unsigned wait-for-expiry schedule settles as `INVALID_PAYER_SIGNATURE` (`43`) with no fee, as the testnet probe showed. An unsigned `executeCallOnPayerSignature` schedule keeps status `7`, which the probe did not exercise.
 
 ## What the emulator does not do
 
@@ -296,7 +296,7 @@ contract FirstScheduledCallTest is Test {
 - Per-second capacity on Hedera is a 1:10 fraction of the live throttle definitions. The emulator's 10 schedules and 15,000,000 gas per second are configurable approximations, not network values.
 - It does not re-price HTS calls. Emulated token calls cost their EVM execution gas, which differs from Hedera's system-contract pricing (an HTS transfer is 15,284 gas on testnet; `associateToken` is 705,424). Measure final gas limits on testnet.
 - `/lab` (Anvil) settles schedules through an external runner, so the emulator's gas fees are not charged there.
-- It does not reject an ERC-20 `approve` from an account that is not associated with the token. Hedera testnet reverts that call; the pinned hedera-forking adapter has no overridable hook on that path, so associate before approving. The probe and the exact blocker are in [`docs/TESTNET_PROOF.md`](docs/TESTNET_PROOF.md#edge-case-probe-4-october-2026).
+- It rejects an unassociated `approve` only on tokens passed to `Forklab.useTokens`. Those tokens get Forklab's HIP-719 proxy, which checks `isAssociated()` first; any other token keeps the upstream proxy, which allows the call. Fork-created accounts must call `Forklab.associateLocalAccount` before approving, just as they would associate on Hedera.
 - It does not make an unsupported external protocol work.
 - It does not provide fake routers, pools, tokens, or oracle responses.
 - It does not make Mirror Node data available at a precision the service cannot return.
